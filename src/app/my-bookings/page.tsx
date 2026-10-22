@@ -13,33 +13,70 @@ import {
   Utensils, 
   FileText,
   ChevronRight,
-  Info
+  Info,
+  Star,
+  Edit3,
+  Trash2
 } from 'lucide-react';
 import { db } from '@/lib/db';
-import { Reservation, ReservationStatus } from '@/types';
+import { Reservation, ReservationStatus, Review } from '@/types';
 import { useAuth } from '@/context/AuthContext';
+import ReviewModal from '@/components/ReviewModal';
 
 export default function MyBookingsPage() {
   const { user } = useAuth();
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [reviewsMap, setReviewsMap] = useState<{ [reservationId: string]: Review }>({});
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<Reservation | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [actionMessage, setActionMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
-  const fetchBookings = async () => {
+  // Review modal state
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [targetReservationForReview, setTargetReservationForReview] = useState<Reservation | null>(null);
+  const [deletingReviewId, setDeletingReviewId] = useState<string | null>(null);
+
+  const fetchBookingsAndReviews = async () => {
     setLoading(true);
-    // Fetch all bookings for this customer or default customer
     const customerId = user?.id || 'cust-1';
-    const all = await db.getReservations({ customerId });
-    setReservations(all);
+    const [allRes, allRevs] = await Promise.all([
+      db.getReservations({ customerId }),
+      db.getReviews({ customerId })
+    ]);
+    setReservations(allRes);
+
+    const map: { [reservationId: string]: Review } = {};
+    for (const rev of allRevs) {
+      map[rev.reservationId] = rev;
+    }
+    setReviewsMap(map);
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchBookings();
+    fetchBookingsAndReviews();
   }, [user]);
+
+  const handleDeleteReview = async (reviewId: string) => {
+    if (!confirm('Are you sure you want to delete this dining review?')) return;
+    const customerId = user?.id || 'cust-1';
+    setDeletingReviewId(reviewId);
+    const res = await db.deleteReview(reviewId, customerId);
+    setDeletingReviewId(null);
+    if (res.success) {
+      setActionMessage({ text: 'Your review was deleted successfully.', type: 'success' });
+      fetchBookingsAndReviews();
+    } else {
+      setActionMessage({ text: res.error || 'Failed to delete review.', type: 'error' });
+    }
+  };
+
+  const handleOpenReviewModal = (res: Reservation) => {
+    setTargetReservationForReview(res);
+    setReviewModalOpen(true);
+  };
 
   const handleCancelBooking = async (res: Reservation) => {
     const updated = await db.updateReservationStatus(
@@ -51,7 +88,7 @@ export default function MyBookingsPage() {
       setActionMessage({ text: `Reservation ${res.bookingReference} has been cancelled. Allocated capacity released.`, type: 'success' });
       setCancellingId(null);
       setCancelReason('');
-      fetchBookings();
+      fetchBookingsAndReviews();
     } else {
       setActionMessage({ text: 'Unable to cancel reservation.', type: 'error' });
     }
@@ -170,6 +207,61 @@ export default function MyBookingsPage() {
                     <strong className="text-sm text-[#1C1C1C]">${res.estimatedTotal.toFixed(2)}</strong>
                   </div>
                 </div>
+
+                {/* Dining Review Status & Actions for Completed Visits */}
+                {res.status === 'completed' && (
+                  <div className="mt-3 pt-3 border-t border-emerald-100 flex flex-wrap items-center justify-between gap-2" onClick={e => e.stopPropagation()}>
+                    {reviewsMap[res.id] ? (
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold">
+                          <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
+                          <span>Rated {reviewsMap[res.id].overallRating}/5</span>
+                        </span>
+                        <span className="text-[11px] text-emerald-700 font-medium flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" /> Reviewed
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-[11px] text-[#795548] font-medium">
+                        Completed visit · Awaiting your feedback
+                      </span>
+                    )}
+
+                    <div className="flex items-center gap-2 ml-auto">
+                      {reviewsMap[res.id] ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenReviewModal(res)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#FAF9F6] hover:bg-[#E8E1DA] text-[#4E342E] text-xs font-semibold border border-[#E8E1DA] transition cursor-pointer"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                            Edit Review
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteReview(reviewsMap[res.id].id)}
+                            disabled={deletingReviewId === reviewsMap[res.id].id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 text-xs font-medium transition cursor-pointer"
+                            title="Delete review"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            Delete
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenReviewModal(res)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#4E342E] hover:bg-[#795548] text-white text-xs font-semibold shadow-xs transition cursor-pointer"
+                        >
+                          <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                          Rate Your Experience
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Inline cancellation prompt */}
                 {cancellingId === res.id && (
@@ -305,6 +397,96 @@ export default function MyBookingsPage() {
                   </div>
                 </div>
 
+                {/* Dining Review in Details Panel for Completed Bookings */}
+                {selectedBooking.status === 'completed' && (
+                  <div className="border-t border-[#E8E1DA] pt-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-serif font-bold text-sm text-[#1C1C1C]">Dining Review</h4>
+                      {reviewsMap[selectedBooking.id] ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          Verified Visit
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-[#795548] font-medium">Not Reviewed Yet</span>
+                      )}
+                    </div>
+
+                    {reviewsMap[selectedBooking.id] ? (
+                      <div className="p-3.5 rounded-2xl bg-[#FAF9F6] border border-[#E8E1DA] space-y-2 text-xs">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1 text-amber-500">
+                            {[1, 2, 3, 4, 5].map(star => (
+                              <Star
+                                key={star}
+                                className={`w-3.5 h-3.5 ${
+                                  reviewsMap[selectedBooking.id].overallRating >= star
+                                    ? 'fill-amber-500 text-amber-500'
+                                    : 'text-gray-300'
+                                }`}
+                              />
+                            ))}
+                            <span className="ml-1 text-xs font-bold text-[#1C1C1C]">
+                              {reviewsMap[selectedBooking.id].overallRating}.0/5
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-[#795548]">
+                            {reviewsMap[selectedBooking.id].createdAt ? new Date(reviewsMap[selectedBooking.id].createdAt).toLocaleDateString() : ''}
+                          </span>
+                        </div>
+
+                        {reviewsMap[selectedBooking.id].comment && (
+                          <p className="text-[#4E342E] italic bg-white p-2.5 rounded-xl border border-[#E8E1DA]/60">
+                            "{reviewsMap[selectedBooking.id].comment}"
+                          </p>
+                        )}
+
+                        {reviewsMap[selectedBooking.id].tags && reviewsMap[selectedBooking.id].tags!.length > 0 && (
+                          <div className="flex flex-wrap gap-1 pt-1">
+                            {reviewsMap[selectedBooking.id].tags!.map(tag => (
+                              <span key={tag} className="px-2 py-0.5 rounded-md bg-white border border-[#E8E1DA] text-[10px] text-[#6B625D]">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {reviewsMap[selectedBooking.id].ownerResponse && (
+                          <div className="mt-2 p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/60 text-[11px] text-[#4E342E] space-y-1">
+                            <span className="font-semibold text-[#1C1C1C] block">Owner Response:</span>
+                            <p>{reviewsMap[selectedBooking.id].ownerResponse}</p>
+                          </div>
+                        )}
+
+                        <div className="flex gap-2 pt-1 border-t border-[#E8E1DA]/60">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenReviewModal(selectedBooking)}
+                            className="flex-1 py-1.5 px-3 rounded-lg bg-white border border-[#E8E1DA] hover:bg-gray-50 text-xs font-semibold text-[#1C1C1C] transition cursor-pointer"
+                          >
+                            Edit Review
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteReview(reviewsMap[selectedBooking.id].id)}
+                            className="py-1.5 px-3 rounded-lg bg-red-50 hover:bg-red-100 text-xs font-medium text-red-700 transition cursor-pointer"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenReviewModal(selectedBooking)}
+                        className="w-full py-2.5 px-4 rounded-xl bg-[#4E342E] hover:bg-[#795548] text-white text-xs font-semibold shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                        Rate Your Experience
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {/* Cancellation Actions */}
                 {selectedBooking.status !== 'cancelled' && selectedBooking.status !== 'completed' && (
                   <div className="border-t border-[#E8E1DA] pt-4">
@@ -328,6 +510,23 @@ export default function MyBookingsPage() {
           </div>
 
         </div>
+      )}
+
+      {/* Review Dialog Modal */}
+      {targetReservationForReview && (
+        <ReviewModal
+          reservation={targetReservationForReview}
+          existingReview={reviewsMap[targetReservationForReview.id] || null}
+          isOpen={reviewModalOpen}
+          onClose={() => {
+            setReviewModalOpen(false);
+            setTargetReservationForReview(null);
+          }}
+          onSuccess={() => {
+            fetchBookingsAndReviews();
+            setActionMessage({ text: 'Review recorded successfully. Restaurant ratings updated.', type: 'success' });
+          }}
+        />
       )}
 
     </div>

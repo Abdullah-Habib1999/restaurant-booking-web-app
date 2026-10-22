@@ -14,7 +14,8 @@ import {
   ExternalLink,
   LogOut,
   ShieldAlert,
-  ArrowLeft
+  ArrowLeft,
+  MessageSquare
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/db';
@@ -23,6 +24,7 @@ import { Restaurant } from '@/types';
 const NAV_ITEMS = [
   { href: '/owner/overview', label: 'Overview', icon: LayoutDashboard },
   { href: '/owner/reservations', label: 'Reservations & Pre-Orders', icon: BookOpen },
+  { href: '/owner/reviews', label: 'Customer Reviews', icon: MessageSquare },
   { href: '/owner/tables', label: 'Tables & Capacity Engine', icon: Grid3X3 },
   { href: '/owner/menu', label: 'Menu Management', icon: UtensilsCrossed },
   { href: '/owner/profile', label: 'Restaurant Profile', icon: Store },

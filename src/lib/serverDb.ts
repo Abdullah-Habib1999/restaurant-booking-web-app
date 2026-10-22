@@ -12,7 +12,9 @@ import {
   TimeSlotAvailability,
   UserProfile,
   ReservationStatus,
-  TableSeatStatus 
+  TableSeatStatus,
+  Review,
+  ReviewStats
 } from '@/types';
 import { 
   INITIAL_RESTAURANTS, 
@@ -157,9 +159,39 @@ sqlite.exec(`
     createdAt TEXT NOT NULL,
     updatedAt TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS reviews (
+    id TEXT PRIMARY KEY,
+    restaurantId TEXT NOT NULL,
+    customerId TEXT NOT NULL,
+    customerName TEXT NOT NULL,
+    customerEmail TEXT,
+    reservationId TEXT UNIQUE NOT NULL,
+    overallRating INTEGER NOT NULL CHECK (overallRating >= 1 AND overallRating <= 5),
+    foodRating INTEGER CHECK (foodRating >= 1 AND foodRating <= 5),
+    serviceRating INTEGER CHECK (serviceRating >= 1 AND serviceRating <= 5),
+    ambienceRating INTEGER CHECK (ambienceRating >= 1 AND ambienceRating <= 5),
+    valueRating INTEGER CHECK (valueRating >= 1 AND valueRating <= 5),
+    comment TEXT,
+    tags TEXT, -- JSON array of strings
+    ownerResponse TEXT,
+    ownerRespondedAt TEXT,
+    isReported INTEGER NOT NULL DEFAULT 0,
+    reportReason TEXT,
+    reportedAt TEXT,
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL,
+    FOREIGN KEY (restaurantId) REFERENCES restaurants(id) ON DELETE CASCADE,
+    FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE,
+    FOREIGN KEY (customerId) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_reviews_restaurant ON reviews(restaurantId);
+  CREATE INDEX IF NOT EXISTS idx_reviews_customer ON reviews(customerId);
+  CREATE INDEX IF NOT EXISTS idx_reviews_reservation ON reviews(reservationId);
 `);
 
-// Safe migrations for table layout and seat numbers
+// Safe migrations for table layout, seat numbers, and reviews
 try {
   sqlite.exec('ALTER TABLE menu_items ADD COLUMN isNonVegetarian INTEGER NOT NULL DEFAULT 0');
 } catch (e) {}
@@ -278,7 +310,174 @@ if (userCount === 0) {
       res.estimatedTotal, JSON.stringify(res.items || []), res.createdAt, res.updatedAt
     );
   }
+
+  // Seed Completed Reservations for real review capability
+  insertRes.run(
+    'res-comp-1', 'LT-COMP-01', 'rest-1', 'L’Osteria Terracotta', 'losteria-terracotta',
+    'cust-1', 'Eleanor Vance', 'customer@demo.com', '+1 (555) 234-9988', 2,
+    '2026-10-18', '19:30', '21:00', 'completed', 'tab-101', 'T-01 (Cap: 2)',
+    'Anniversary dinner', 84.50, 7.50, 92.00, '[]',
+    new Date(Date.now() - 3600000 * 96).toISOString(),
+    new Date(Date.now() - 3600000 * 96).toISOString()
+  );
+
+  insertRes.run(
+    'res-comp-2', 'LT-COMP-02', 'rest-1', 'L’Osteria Terracotta', 'losteria-terracotta',
+    'cust-2', 'Marcus Wright', 'marcus.w@example.com', '+1 (555) 777-4321', 4,
+    '2026-10-19', '20:00', '21:30', 'completed', 'tab-103', 'T-03 (Cap: 4)',
+    'Business gathering', 142.00, 12.60, 154.60, '[]',
+    new Date(Date.now() - 3600000 * 72).toISOString(),
+    new Date(Date.now() - 3600000 * 72).toISOString()
+  );
+
+  insertRes.run(
+    'res-comp-3', 'SS-COMP-01', 'rest-2', 'Saffron & Silk Bistro', 'saffron-and-silk-bistro',
+    'cust-1', 'Eleanor Vance', 'customer@demo.com', '+1 (555) 234-9988', 2,
+    '2026-10-17', '19:00', '20:30', 'completed', 'tab-201', 'S-01 (Cap: 2)',
+    'Window view requested', 72.00, 6.40, 78.40, '[]',
+    new Date(Date.now() - 3600000 * 120).toISOString(),
+    new Date(Date.now() - 3600000 * 120).toISOString()
+  );
+
+  insertRes.run(
+    'res-comp-4', 'LT-COMP-03', 'rest-1', 'L’Osteria Terracotta', 'losteria-terracotta',
+    'cust-1', 'Eleanor Vance', 'customer@demo.com', '+1 (555) 234-9988', 3,
+    '2026-10-21', '18:30', '20:00', 'completed', 'tab-102', 'T-02 (Cap: 4)',
+    'Family dinner', 115.00, 10.20, 125.20, '[]',
+    new Date(Date.now() - 3600000 * 24).toISOString(),
+    new Date(Date.now() - 3600000 * 24).toISOString()
+  );
+
+  // Seed Initial Verified Reviews
+  const insertRev = sqlite.prepare(`
+    INSERT INTO reviews (
+      id, restaurantId, customerId, customerName, customerEmail, reservationId,
+      overallRating, foodRating, serviceRating, ambienceRating, valueRating,
+      comment, tags, ownerResponse, ownerRespondedAt, createdAt, updatedAt
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  insertRev.run(
+    'rev-101', 'rest-1', 'cust-2', 'Marcus Wright', 'marcus.w@example.com', 'res-comp-2',
+    5, 5, 5, 5, 4,
+    'Outstanding wood-fired pinsa and the black truffle tagliolini was divine. The wine cellar recommendation was sublime.',
+    JSON.stringify(['Excellent Food', 'Friendly Staff', 'Great Ambience']),
+    'Thank you Marcus! It was an absolute delight hosting your team at L’Osteria. We look forward to seeing you again soon.',
+    new Date(Date.now() - 3600000 * 48).toISOString(),
+    new Date(Date.now() - 3600000 * 60).toISOString(),
+    new Date(Date.now() - 3600000 * 60).toISOString()
+  );
+
+  insertRev.run(
+    'rev-102', 'rest-2', 'cust-1', 'Eleanor Vance', 'customer@demo.com', 'res-comp-3',
+    5, 5, 4, 5, 5,
+    'The 24-hour slow simmered Dal and Dum Pukht mutton biryani were breathtakingly authentic. Ambient warm lighting made for an enchanting evening.',
+    JSON.stringify(['Excellent Food', 'Great Ambience', 'Good Value']),
+    'Thank you Eleanor! Delighted you enjoyed the Awadhi culinary craft. Warm regards from our kitchen brigade.',
+    new Date(Date.now() - 3600000 * 70).toISOString(),
+    new Date(Date.now() - 3600000 * 90).toISOString(),
+    new Date(Date.now() - 3600000 * 90).toISOString()
+  );
 }
+
+// Seed completed reservations & verified initial reviews if not yet present
+try {
+  const compCount = (sqlite.prepare("SELECT COUNT(*) as count FROM reservations WHERE status = 'completed'").get() as { count: number }).count;
+  if (compCount === 0) {
+    const insertRes = sqlite.prepare(`
+      INSERT OR IGNORE INTO reservations (
+        id, bookingReference, restaurantId, restaurantName, restaurantSlug, customerId,
+        customerName, customerEmail, customerPhone, partySize, reservationDate, startTime,
+        endTime, status, assignedTableId, assignedTableName, specialRequests, orderSubtotal,
+        orderTax, estimatedTotal, items, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insertRes.run(
+      'res-comp-1', 'LT-COMP-01', 'rest-1', 'L’Osteria Terracotta', 'losteria-terracotta',
+      'cust-1', 'Eleanor Vance', 'customer@demo.com', '+1 (555) 234-9988', 2,
+      '2026-10-18', '19:30', '21:00', 'completed', 'tab-101', 'T-01 (Cap: 2)',
+      'Anniversary dinner', 84.50, 7.50, 92.00, '[]',
+      new Date(Date.now() - 3600000 * 96).toISOString(),
+      new Date(Date.now() - 3600000 * 96).toISOString()
+    );
+
+    insertRes.run(
+      'res-comp-2', 'LT-COMP-02', 'rest-1', 'L’Osteria Terracotta', 'losteria-terracotta',
+      'cust-2', 'Marcus Wright', 'marcus.w@example.com', '+1 (555) 777-4321', 4,
+      '2026-10-19', '20:00', '21:30', 'completed', 'tab-103', 'T-03 (Cap: 4)',
+      'Business gathering', 142.00, 12.60, 154.60, '[]',
+      new Date(Date.now() - 3600000 * 72).toISOString(),
+      new Date(Date.now() - 3600000 * 72).toISOString()
+    );
+
+    insertRes.run(
+      'res-comp-3', 'SS-COMP-01', 'rest-2', 'Saffron & Silk Bistro', 'saffron-and-silk-bistro',
+      'cust-1', 'Eleanor Vance', 'customer@demo.com', '+1 (555) 234-9988', 2,
+      '2026-10-17', '19:00', '20:30', 'completed', 'tab-201', 'S-01 (Cap: 2)',
+      'Window view requested', 72.00, 6.40, 78.40, '[]',
+      new Date(Date.now() - 3600000 * 120).toISOString(),
+      new Date(Date.now() - 3600000 * 120).toISOString()
+    );
+
+    insertRes.run(
+      'res-comp-4', 'LT-COMP-03', 'rest-1', 'L’Osteria Terracotta', 'losteria-terracotta',
+      'cust-1', 'Eleanor Vance', 'customer@demo.com', '+1 (555) 234-9988', 3,
+      '2026-10-21', '18:30', '20:00', 'completed', 'tab-102', 'T-02 (Cap: 4)',
+      'Family dinner', 115.00, 10.20, 125.20, '[]',
+      new Date(Date.now() - 3600000 * 24).toISOString(),
+      new Date(Date.now() - 3600000 * 24).toISOString()
+    );
+  }
+
+  const revCount = (sqlite.prepare('SELECT COUNT(*) as count FROM reviews').get() as { count: number }).count;
+  if (revCount === 0) {
+    const insertRev = sqlite.prepare(`
+      INSERT OR IGNORE INTO reviews (
+        id, restaurantId, customerId, customerName, customerEmail, reservationId,
+        overallRating, foodRating, serviceRating, ambienceRating, valueRating,
+        comment, tags, ownerResponse, ownerRespondedAt, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insertRev.run(
+      'rev-101', 'rest-1', 'cust-2', 'Marcus Wright', 'marcus.w@example.com', 'res-comp-2',
+      5, 5, 5, 5, 4,
+      'Outstanding wood-fired pinsa and the black truffle tagliolini was divine. The wine cellar recommendation was sublime.',
+      JSON.stringify(['Excellent Food', 'Friendly Staff', 'Great Ambience']),
+      'Thank you Marcus! It was an absolute delight hosting your team at L’Osteria. We look forward to seeing you again soon.',
+      new Date(Date.now() - 3600000 * 48).toISOString(),
+      new Date(Date.now() - 3600000 * 60).toISOString(),
+      new Date(Date.now() - 3600000 * 60).toISOString()
+    );
+
+    insertRev.run(
+      'rev-102', 'rest-2', 'cust-1', 'Eleanor Vance', 'customer@demo.com', 'res-comp-3',
+      5, 5, 4, 5, 5,
+      'The 24-hour slow simmered Dal and Dum Pukht mutton biryani were breathtakingly authentic. Ambient warm lighting made for an enchanting evening.',
+      JSON.stringify(['Excellent Food', 'Great Ambience', 'Good Value']),
+      'Thank you Eleanor! Delighted you enjoyed the Awadhi culinary craft. Warm regards from our kitchen brigade.',
+      new Date(Date.now() - 3600000 * 70).toISOString(),
+      new Date(Date.now() - 3600000 * 90).toISOString(),
+      new Date(Date.now() - 3600000 * 90).toISOString()
+    );
+  }
+} catch (e) {}
+
+// Ensure all restaurant ratings accurately reflect real database review averages
+// (Synchronizes restaurants where reviewCount or rating might differ from actual reviews)
+try {
+  const allRests = sqlite.prepare('SELECT id FROM restaurants').all() as { id: string }[];
+  for (const r of allRests) {
+    const revStats = sqlite.prepare(`
+      SELECT COUNT(*) as count, AVG(overallRating) as avgRating 
+      FROM reviews WHERE restaurantId = ?
+    `).get(r.id) as { count: number; avgRating: number | null };
+    const realCount = revStats?.count || 0;
+    const realRating = realCount > 0 ? Number((revStats.avgRating || 0).toFixed(1)) : 0;
+    sqlite.prepare('UPDATE restaurants SET rating = ?, reviewCount = ? WHERE id = ?').run(realRating, realCount, r.id);
+  }
+} catch (e) {}
 
 // Map helper functions
 function mapRestaurant(row: any): Restaurant {
@@ -294,6 +493,19 @@ function mapReservation(row: any): Reservation {
     ...row,
     items: JSON.parse(row.items || '[]'),
     assignedSeatNumbers: row.assignedSeatNumbers ? JSON.parse(row.assignedSeatNumbers) : undefined
+  };
+}
+
+function mapReview(row: any): Review {
+  return {
+    ...row,
+    overallRating: Number(row.overallRating),
+    foodRating: row.foodRating !== null && row.foodRating !== undefined ? Number(row.foodRating) : undefined,
+    serviceRating: row.serviceRating !== null && row.serviceRating !== undefined ? Number(row.serviceRating) : undefined,
+    ambienceRating: row.ambienceRating !== null && row.ambienceRating !== undefined ? Number(row.ambienceRating) : undefined,
+    valueRating: row.valueRating !== null && row.valueRating !== undefined ? Number(row.valueRating) : undefined,
+    tags: row.tags ? JSON.parse(row.tags) : [],
+    isReported: Boolean(row.isReported)
   };
 }
 
@@ -462,6 +674,22 @@ export const serverDb = {
   // HOURS
   getRestaurantHours: (restaurantId: string): RestaurantHours[] => {
     const rows = sqlite.prepare('SELECT * FROM restaurant_hours WHERE restaurantId = ?').all(restaurantId);
+    if (!rows || rows.length === 0) {
+      // Seed missing hours for this restaurant from INITIAL_HOURS if available
+      const defaults = INITIAL_HOURS.filter(h => h.restaurantId === restaurantId);
+      if (defaults.length > 0) {
+        try {
+          const insert = sqlite.prepare('INSERT OR IGNORE INTO restaurant_hours (id, restaurantId, dayOfWeek, openTime, closeTime, isClosed) VALUES (?, ?, ?, ?, ?, ?)');
+          for (const h of defaults) {
+            insert.run(h.id, restaurantId, h.dayOfWeek, h.openTime, h.closeTime, h.isClosed ? 1 : 0);
+          }
+          return defaults;
+        } catch (e) {
+          return defaults;
+        }
+      }
+      return [];
+    }
     return rows.map((r: any) => ({ ...r, isClosed: Boolean(r.isClosed) }));
   },
 
@@ -513,7 +741,12 @@ export const serverDb = {
     const rest = serverDb.getRestaurantById(restaurantId);
     if (!rest) return [];
 
-    const dayOfWeek = new Date(date + 'T00:00:00').getDay();
+    // Parse YYYY-MM-DD cleanly into local year, month, day to avoid UTC shifts
+    const [year, month, day] = date.split('-').map(Number);
+    const dayOfWeek = (!isNaN(year) && !isNaN(month) && !isNaN(day)) 
+      ? new Date(year, month - 1, day).getDay() 
+      : new Date().getDay();
+
     const hours = serverDb.getRestaurantHours(restaurantId);
     const dayHours = hours.find(h => h.dayOfWeek === dayOfWeek);
 
@@ -964,6 +1197,357 @@ export const serverDb = {
       `).run(u.id, u.email, u.fullName, u.phone || null, u.role, u.password || null, u.ownedRestaurantId || null, u.createdAt);
     }
     return u;
+  },
+
+  // REVIEWS & RATINGS SYSTEM
+  recalculateRestaurantRating: (restaurantId: string): { rating: number; reviewCount: number } => {
+    const stats = sqlite.prepare(`
+      SELECT 
+        COUNT(*) as count,
+        AVG(overallRating) as avgRating
+      FROM reviews
+      WHERE restaurantId = ?
+    `).get(restaurantId) as { count: number; avgRating: number | null };
+
+    const reviewCount = stats?.count || 0;
+    // If no reviews exist, average rating is 0
+    const rating = reviewCount > 0 ? Number((stats.avgRating || 0).toFixed(1)) : 0;
+
+    sqlite.prepare(`
+      UPDATE restaurants 
+      SET rating = ?, reviewCount = ? 
+      WHERE id = ?
+    `).run(rating, reviewCount, restaurantId);
+
+    return { rating, reviewCount };
+  },
+
+  getReviewStats: (restaurantId: string): ReviewStats => {
+    const reviews = sqlite.prepare('SELECT * FROM reviews WHERE restaurantId = ?').all(restaurantId) as any[];
+    const reviewCount = reviews.length;
+
+    const distribution: { [star: number]: number } = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    let sumOverall = 0;
+    let sumFood = 0;
+    let countFood = 0;
+    let sumService = 0;
+    let countService = 0;
+    let sumAmbience = 0;
+    let countAmbience = 0;
+    let sumValue = 0;
+    let countValue = 0;
+
+    for (const r of reviews) {
+      const overall = Math.max(1, Math.min(5, Math.round(Number(r.overallRating))));
+      distribution[overall] = (distribution[overall] || 0) + 1;
+      sumOverall += Number(r.overallRating);
+
+      if (r.foodRating !== null && r.foodRating !== undefined) {
+        sumFood += Number(r.foodRating);
+        countFood++;
+      }
+      if (r.serviceRating !== null && r.serviceRating !== undefined) {
+        sumService += Number(r.serviceRating);
+        countService++;
+      }
+      if (r.ambienceRating !== null && r.ambienceRating !== undefined) {
+        sumAmbience += Number(r.ambienceRating);
+        countAmbience++;
+      }
+      if (r.valueRating !== null && r.valueRating !== undefined) {
+        sumValue += Number(r.valueRating);
+        countValue++;
+      }
+    }
+
+    const averageRating = reviewCount > 0 ? Number((sumOverall / reviewCount).toFixed(1)) : 0;
+    const avgFood = countFood > 0 ? Number((sumFood / countFood).toFixed(1)) : undefined;
+    const avgService = countService > 0 ? Number((sumService / countService).toFixed(1)) : undefined;
+    const avgAmbience = countAmbience > 0 ? Number((sumAmbience / countAmbience).toFixed(1)) : undefined;
+    const avgValue = countValue > 0 ? Number((sumValue / countValue).toFixed(1)) : undefined;
+
+    return {
+      averageRating,
+      reviewCount,
+      distribution,
+      avgFood,
+      avgService,
+      avgAmbience,
+      avgValue
+    };
+  },
+
+  getReviews: (filter: {
+    restaurantId?: string;
+    customerId?: string;
+    reservationId?: string;
+    sortBy?: 'recent' | 'highest' | 'lowest';
+  }): Review[] => {
+    let query = `
+      SELECT r.*, res.reservationDate as visitDate, res.partySize as partySize
+      FROM reviews r
+      LEFT JOIN reservations res ON r.reservationId = res.id
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+
+    if (filter.restaurantId) {
+      query += ' AND r.restaurantId = ?';
+      params.push(filter.restaurantId);
+    }
+    if (filter.customerId) {
+      query += ' AND r.customerId = ?';
+      params.push(filter.customerId);
+    }
+    if (filter.reservationId) {
+      query += ' AND r.reservationId = ?';
+      params.push(filter.reservationId);
+    }
+
+    if (filter.sortBy === 'highest') {
+      query += ' ORDER BY r.overallRating DESC, r.createdAt DESC';
+    } else if (filter.sortBy === 'lowest') {
+      query += ' ORDER BY r.overallRating ASC, r.createdAt DESC';
+    } else {
+      query += ' ORDER BY r.createdAt DESC';
+    }
+
+    const rows = sqlite.prepare(query).all(...params);
+    return rows.map(mapReview);
+  },
+
+  getReviewById: (id: string): Review | null => {
+    const row = sqlite.prepare(`
+      SELECT r.*, res.reservationDate as visitDate, res.partySize as partySize
+      FROM reviews r
+      LEFT JOIN reservations res ON r.reservationId = res.id
+      WHERE r.id = ?
+    `).get(id);
+    return row ? mapReview(row) : null;
+  },
+
+  getReviewByReservationId: (reservationId: string): Review | null => {
+    const row = sqlite.prepare(`
+      SELECT r.*, res.reservationDate as visitDate, res.partySize as partySize
+      FROM reviews r
+      LEFT JOIN reservations res ON r.reservationId = res.id
+      WHERE r.reservationId = ?
+    `).get(reservationId);
+    return row ? mapReview(row) : null;
+  },
+
+  createReview: (data: {
+    restaurantId: string;
+    customerId: string;
+    customerName: string;
+    customerEmail?: string;
+    reservationId: string;
+    overallRating: number;
+    foodRating?: number;
+    serviceRating?: number;
+    ambienceRating?: number;
+    valueRating?: number;
+    comment?: string;
+    tags?: string[];
+  }): { success: boolean; review?: Review; error?: string } => {
+    // 1. Verify reservation existence & completion
+    const reservation = serverDb.getReservationById(data.reservationId);
+    if (!reservation) {
+      return { success: false, error: 'Reservation not found.' };
+    }
+
+    if (reservation.customerId !== data.customerId) {
+      return { success: false, error: 'Unauthorized: You can only review your own reservations.' };
+    }
+
+    if (reservation.status !== 'completed') {
+      return { 
+        success: false, 
+        error: `Only reservations with 'completed' dining status can be reviewed. Current status is '${reservation.status}'.` 
+      };
+    }
+
+    // 2. Prevent restaurant owners from reviewing their own restaurant
+    const rest = serverDb.getRestaurantById(data.restaurantId);
+    if (rest && rest.ownerId === data.customerId) {
+      return { success: false, error: 'Restaurant owners cannot review their own restaurant.' };
+    }
+
+    // 3. Check for duplicate review on this reservation
+    const existing = serverDb.getReviewByReservationId(data.reservationId);
+    if (existing) {
+      return { success: false, error: 'This completed reservation has already been reviewed.' };
+    }
+
+    // 4. Validate rating ranges (1-5)
+    if (!data.overallRating || data.overallRating < 1 || data.overallRating > 5) {
+      return { success: false, error: 'Overall star rating is required and must be between 1 and 5.' };
+    }
+
+    const validateRating = (val?: number) => {
+      if (val === undefined || val === null) return true;
+      return typeof val === 'number' && val >= 1 && val <= 5;
+    };
+
+    if (!validateRating(data.foodRating) || !validateRating(data.serviceRating) ||
+        !validateRating(data.ambienceRating) || !validateRating(data.valueRating)) {
+      return { success: false, error: 'Detailed category ratings must be between 1 and 5.' };
+    }
+
+    const id = `rev-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+    const now = new Date().toISOString();
+
+    try {
+      sqlite.prepare(`
+        INSERT INTO reviews (
+          id, restaurantId, customerId, customerName, customerEmail, reservationId,
+          overallRating, foodRating, serviceRating, ambienceRating, valueRating,
+          comment, tags, createdAt, updatedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        id,
+        data.restaurantId,
+        data.customerId,
+        data.customerName || reservation.customerName,
+        data.customerEmail || reservation.customerEmail,
+        data.reservationId,
+        Math.round(data.overallRating),
+        data.foodRating ? Math.round(data.foodRating) : null,
+        data.serviceRating ? Math.round(data.serviceRating) : null,
+        data.ambienceRating ? Math.round(data.ambienceRating) : null,
+        data.valueRating ? Math.round(data.valueRating) : null,
+        data.comment ? data.comment.trim() : null,
+        data.tags && Array.isArray(data.tags) ? JSON.stringify(data.tags) : null,
+        now,
+        now
+      );
+
+      // Recalculate restaurant overall rating & review count
+      serverDb.recalculateRestaurantRating(data.restaurantId);
+
+      const created = serverDb.getReviewById(id);
+      return { success: true, review: created! };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Database error creating review' };
+    }
+  },
+
+  updateReview: (id: string, customerId: string, data: {
+    overallRating?: number;
+    foodRating?: number;
+    serviceRating?: number;
+    ambienceRating?: number;
+    valueRating?: number;
+    comment?: string;
+    tags?: string[];
+  }): { success: boolean; review?: Review; error?: string } => {
+    const existing = serverDb.getReviewById(id);
+    if (!existing) {
+      return { success: false, error: 'Review not found.' };
+    }
+
+    if (existing.customerId !== customerId) {
+      return { success: false, error: 'Unauthorized: You can only edit your own reviews.' };
+    }
+
+    const overallRating = data.overallRating !== undefined ? data.overallRating : existing.overallRating;
+    if (!overallRating || overallRating < 1 || overallRating > 5) {
+      return { success: false, error: 'Overall star rating must be between 1 and 5.' };
+    }
+
+    const foodRating = data.foodRating !== undefined ? (data.foodRating || null) : (existing.foodRating || null);
+    const serviceRating = data.serviceRating !== undefined ? (data.serviceRating || null) : (existing.serviceRating || null);
+    const ambienceRating = data.ambienceRating !== undefined ? (data.ambienceRating || null) : (existing.ambienceRating || null);
+    const valueRating = data.valueRating !== undefined ? (data.valueRating || null) : (existing.valueRating || null);
+    const comment = data.comment !== undefined ? (data.comment?.trim() || null) : (existing.comment || null);
+    const tags = data.tags !== undefined ? JSON.stringify(data.tags) : JSON.stringify(existing.tags || []);
+    const now = new Date().toISOString();
+
+    try {
+      sqlite.prepare(`
+        UPDATE reviews SET 
+          overallRating = ?, foodRating = ?, serviceRating = ?, ambienceRating = ?, valueRating = ?,
+          comment = ?, tags = ?, updatedAt = ?
+        WHERE id = ?
+      `).run(
+        Math.round(overallRating),
+        foodRating ? Math.round(foodRating) : null,
+        serviceRating ? Math.round(serviceRating) : null,
+        ambienceRating ? Math.round(ambienceRating) : null,
+        valueRating ? Math.round(valueRating) : null,
+        comment,
+        tags,
+        now,
+        id
+      );
+
+      // Recalculate
+      serverDb.recalculateRestaurantRating(existing.restaurantId);
+
+      const updated = serverDb.getReviewById(id);
+      return { success: true, review: updated! };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Error updating review' };
+    }
+  },
+
+  deleteReview: (id: string, customerId: string): { success: boolean; error?: string } => {
+    const existing = serverDb.getReviewById(id);
+    if (!existing) {
+      return { success: false, error: 'Review not found.' };
+    }
+
+    if (existing.customerId !== customerId) {
+      return { success: false, error: 'Unauthorized: You can only delete your own reviews.' };
+    }
+
+    try {
+      sqlite.prepare('DELETE FROM reviews WHERE id = ?').run(id);
+      // Recalculate restaurant overall rating & count
+      serverDb.recalculateRestaurantRating(existing.restaurantId);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Error deleting review' };
+    }
+  },
+
+  respondToReview: (reviewId: string, ownerId: string, responseText: string): { success: boolean; review?: Review; error?: string } => {
+    const review = serverDb.getReviewById(reviewId);
+    if (!review) {
+      return { success: false, error: 'Review not found.' };
+    }
+
+    const rest = serverDb.getRestaurantById(review.restaurantId);
+    if (!rest || rest.ownerId !== ownerId) {
+      return { success: false, error: 'Unauthorized: Only the verified owner of this restaurant can respond to this review.' };
+    }
+
+    const now = new Date().toISOString();
+    sqlite.prepare(`
+      UPDATE reviews 
+      SET ownerResponse = ?, ownerRespondedAt = ?, updatedAt = ?
+      WHERE id = ?
+    `).run(responseText.trim(), now, now, reviewId);
+
+    const updated = serverDb.getReviewById(reviewId);
+    return { success: true, review: updated! };
+  },
+
+  reportReview: (reviewId: string, reporterId: string, reason: string): { success: boolean; review?: Review; error?: string } => {
+    const review = serverDb.getReviewById(reviewId);
+    if (!review) {
+      return { success: false, error: 'Review not found.' };
+    }
+
+    const now = new Date().toISOString();
+    sqlite.prepare(`
+      UPDATE reviews 
+      SET isReported = 1, reportReason = ?, reportedAt = ?, updatedAt = ?
+      WHERE id = ?
+    `).run(reason.trim(), now, now, reviewId);
+
+    const updated = serverDb.getReviewById(reviewId);
+    return { success: true, review: updated! };
   }
 };
 

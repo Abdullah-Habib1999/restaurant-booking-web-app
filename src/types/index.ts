@@ -177,3 +177,39 @@ export interface TimeSlotAvailability {
   maxPartyAllowed: number;
   suggestedTableId?: string;
 }
+
+export interface Review {
+  id: string;
+  restaurantId: string;
+  customerId: string;
+  customerName: string;
+  customerEmail?: string;
+  reservationId: string;
+  overallRating: number; // 1-5
+  foodRating?: number; // 1-5
+  serviceRating?: number; // 1-5
+  ambienceRating?: number; // 1-5
+  valueRating?: number; // 1-5
+  comment?: string;
+  tags?: string[]; // e.g. ["Excellent Food", "Friendly Staff", "Great Ambience", "Good Value", "Long Waiting Time"]
+  ownerResponse?: string;
+  ownerRespondedAt?: string;
+  isReported?: boolean;
+  reportReason?: string;
+  reportedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  visitDate?: string;
+  partySize?: number;
+}
+
+export interface ReviewStats {
+  averageRating: number;
+  reviewCount: number;
+  distribution: { [star: number]: number }; // { 1: n, 2: n, 3: n, 4: n, 5: n }
+  avgFood?: number;
+  avgService?: number;
+  avgAmbience?: number;
+  avgValue?: number;
+}
+

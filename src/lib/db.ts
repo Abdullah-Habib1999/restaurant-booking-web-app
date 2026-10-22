@@ -9,7 +9,9 @@ import {
   TimeSlotAvailability,
   UserProfile,
   ReservationStatus,
-  TableSeatStatus
+  TableSeatStatus,
+  Review,
+  ReviewStats
 } from '@/types';
 import { 
   INITIAL_RESTAURANTS, 
@@ -25,7 +27,16 @@ const isBrowser = typeof window !== 'undefined';
 // Safe fetch wrapper that works both in client browser and server node
 async function apiFetch<T>(endpoint: string, options?: RequestInit): Promise<T | null> {
   try {
-    const baseUrl = isBrowser ? '' : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+    let baseUrl = '';
+    if (!isBrowser) {
+      if (process.env.NEXT_PUBLIC_APP_URL) {
+        baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+      } else if (process.env.VERCEL_URL) {
+        baseUrl = `https://${process.env.VERCEL_URL}`;
+      } else {
+        baseUrl = 'http://localhost:3000';
+      }
+    }
     const res = await fetch(`${baseUrl}${endpoint}`, {
       ...options,
       headers: {
@@ -401,7 +412,22 @@ export const db = {
     items?: { menuItemId: string; quantity: number }[];
   }): Promise<{ success: boolean; reservation?: Reservation; error?: string }> => {
     try {
-      const res = await fetch('/api/reservations', {
+      let baseUrl = '';
+      if (!isBrowser) {
+        if (process.env.NEXT_PUBLIC_APP_URL) {
+          baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+        } else if (process.env.VERCEL_URL) {
+          baseUrl = `https://${process.env.VERCEL_URL}`;
+        } else {
+          baseUrl = 'http://localhost:3000';
+        }
+      }
+      // If running directly in Node test runner without dev server, delegate directly to serverDb
+      if (!isBrowser && typeof window === 'undefined') {
+        const { serverDb } = await import('@/lib/serverDb');
+        return serverDb.createReservation(data);
+      }
+      const res = await fetch(`${baseUrl}/api/reservations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -421,7 +447,12 @@ export const db = {
     cancellationReason?: string
   ): Promise<Reservation | null> => {
     try {
-      const res = await fetch('/api/reservations', {
+      const baseUrl = isBrowser ? '' : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+      if (!isBrowser && typeof window === 'undefined') {
+        const { serverDb } = await import('@/lib/serverDb');
+        return serverDb.updateReservationStatus(reservationId, newStatus, cancellationReason);
+      }
+      const res = await fetch(`${baseUrl}/api/reservations`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -441,7 +472,12 @@ export const db = {
 
   assignReservationTable: async (reservationId: string, tableId: string): Promise<Reservation | null> => {
     try {
-      const res = await fetch('/api/reservations', {
+      const baseUrl = isBrowser ? '' : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+      if (!isBrowser && typeof window === 'undefined') {
+        const { serverDb } = await import('@/lib/serverDb');
+        return serverDb.assignReservationTable(reservationId, tableId);
+      }
+      const res = await fetch(`${baseUrl}/api/reservations`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -486,6 +522,136 @@ export const db = {
     });
     if (data) return data;
     return user;
+  },
+
+  // --- REVIEWS & RATINGS ---
+  getReviews: async (filter: {
+    restaurantId?: string;
+    customerId?: string;
+    reservationId?: string;
+    sortBy?: 'recent' | 'highest' | 'lowest';
+  }): Promise<Review[]> => {
+    const params = new URLSearchParams();
+    if (filter.restaurantId) params.set('restaurantId', filter.restaurantId);
+    if (filter.customerId) params.set('customerId', filter.customerId);
+    if (filter.reservationId) params.set('reservationId', filter.reservationId);
+    if (filter.sortBy) params.set('sortBy', filter.sortBy);
+
+    const data = await apiFetch<Review[]>(`/api/reviews?${params.toString()}`);
+    return data && Array.isArray(data) ? data : [];
+  },
+
+  getReviewStats: async (restaurantId: string): Promise<ReviewStats> => {
+    const data = await apiFetch<ReviewStats>(`/api/reviews/stats?restaurantId=${encodeURIComponent(restaurantId)}`);
+    if (data) return data;
+    return {
+      averageRating: 0,
+      reviewCount: 0,
+      distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+    };
+  },
+
+  createReview: async (reviewData: {
+    restaurantId: string;
+    customerId: string;
+    customerName: string;
+    customerEmail?: string;
+    reservationId: string;
+    overallRating: number;
+    foodRating?: number;
+    serviceRating?: number;
+    ambienceRating?: number;
+    valueRating?: number;
+    comment?: string;
+    tags?: string[];
+  }): Promise<{ success: boolean; review?: Review; error?: string }> => {
+    try {
+      const baseUrl = isBrowser ? '' : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+      const res = await fetch(`${baseUrl}/api/reviews`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reviewData),
+        cache: 'no-store'
+      });
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error submitting review' };
+    }
+  },
+
+  updateReview: async (
+    id: string,
+    customerId: string,
+    updateData: {
+      overallRating?: number;
+      foodRating?: number;
+      serviceRating?: number;
+      ambienceRating?: number;
+      valueRating?: number;
+      comment?: string;
+      tags?: string[];
+    }
+  ): Promise<{ success: boolean; review?: Review; error?: string }> => {
+    try {
+      const baseUrl = isBrowser ? '' : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+      const res = await fetch(`${baseUrl}/api/reviews`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, customerId, ...updateData }),
+        cache: 'no-store'
+      });
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error updating review' };
+    }
+  },
+
+  deleteReview: async (id: string, customerId: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const baseUrl = isBrowser ? '' : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+      const res = await fetch(`${baseUrl}/api/reviews?id=${encodeURIComponent(id)}&customerId=${encodeURIComponent(customerId)}`, {
+        method: 'DELETE',
+        cache: 'no-store'
+      });
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error deleting review' };
+    }
+  },
+
+  respondToReview: async (reviewId: string, ownerId: string, response: string): Promise<{ success: boolean; review?: Review; error?: string }> => {
+    try {
+      const baseUrl = isBrowser ? '' : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+      const res = await fetch(`${baseUrl}/api/reviews/respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reviewId, ownerId, response }),
+        cache: 'no-store'
+      });
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error responding to review' };
+    }
+  },
+
+  reportReview: async (reviewId: string, reporterId: string, reason: string): Promise<{ success: boolean; review?: Review; error?: string }> => {
+    try {
+      const baseUrl = isBrowser ? '' : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+      const res = await fetch(`${baseUrl}/api/reviews/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reviewId, reporterId, reason }),
+        cache: 'no-store'
+      });
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error reporting review' };
+    }
   }
 };
 

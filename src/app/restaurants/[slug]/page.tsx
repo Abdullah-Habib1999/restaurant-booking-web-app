@@ -19,7 +19,9 @@ import {
   ArrowRight,
   Sparkles,
   ChevronLeft,
-  AlertCircle
+  ChevronDown,
+  AlertCircle,
+  Star
 } from 'lucide-react';
 import { db } from '@/lib/db';
 import { 
@@ -27,12 +29,13 @@ import {
   MenuCategory, 
   MenuItem, 
   TimeSlotAvailability,
-  RestaurantHours,
+  RestaurantHours, 
   TableSeatStatus 
 } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { Suspense } from 'react';
 import InteractiveSeatingMap from '@/components/InteractiveSeatingMap';
+import RestaurantReviewsSection from '@/components/RestaurantReviewsSection';
 
 function RestaurantDetailContent() {
   const params = useParams();
@@ -54,9 +57,10 @@ function RestaurantDetailContent() {
   const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
   const [seatHoldToken, setSeatHoldToken] = useState<string | null>(null);
 
-  // Booking Parameters
+  // Booking Parameters (Dynamically initialized to current date)
+  const todayStr = useMemo(() => new Date().toLocaleDateString('en-CA'), []);
   const [visitDate, setVisitDate] = useState<string>(
-    searchParams.get('date') || '2026-10-22'
+    searchParams.get('date') || todayStr
   );
   const [partySize, setPartySize] = useState<number>(
     Number(searchParams.get('guests')) || 2
@@ -84,6 +88,16 @@ function RestaurantDetailContent() {
   // Active Booking Detection & Modal State
   const [activeBooking, setActiveBooking] = useState<any | null>(null);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [showWeeklyHours, setShowWeeklyHours] = useState(false);
+
+  // Compute Today's Opening Hours
+  const todaySchedule = useMemo(() => {
+    if (!hours || hours.length === 0) return null;
+    const currentDay = new Date().getDay();
+    return hours.find(h => h.dayOfWeek === currentDay) || null;
+  }, [hours]);
+
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
   // Load Restaurant & Menu Data
   useEffect(() => {
@@ -495,7 +509,7 @@ function RestaurantDetailContent() {
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
               <div className="absolute bottom-6 left-6 right-6 text-white">
-                <div className="flex flex-wrap gap-2 mb-2">
+                <div className="flex flex-wrap items-center gap-2 mb-2">
                   {restaurant.cuisineType.map(c => (
                     <span key={c} className="px-2.5 py-0.5 rounded-md bg-white/20 backdrop-blur-md text-xs font-medium">
                       {c}
@@ -504,6 +518,22 @@ function RestaurantDetailContent() {
                   <span className="px-2.5 py-0.5 rounded-md bg-[#795548] text-xs font-semibold">
                     {restaurant.priceTier}
                   </span>
+                  <div className="px-3 py-0.5 rounded-md bg-white/95 backdrop-blur-md text-[#201B18] text-xs font-semibold flex items-center gap-1.5 shadow-2xs">
+                    {restaurant.reviewCount && restaurant.reviewCount > 0 ? (
+                      <>
+                        <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                        <span>{restaurant.rating?.toFixed(1)}/5</span>
+                        <span className="text-[#6B625D] font-normal">
+                          ({restaurant.reviewCount} verified {restaurant.reviewCount === 1 ? 'review' : 'reviews'})
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Star className="w-3.5 h-3.5 text-gray-400" />
+                        <span className="text-[#6B625D]">No reviews yet</span>
+                      </>
+                    )}
+                  </div>
                 </div>
                 <h1 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight">
                   {restaurant.name}
@@ -515,7 +545,7 @@ function RestaurantDetailContent() {
             </div>
 
             {/* Quick Details Bar */}
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-4 border-b border-[#E8E1DA] bg-[#FAF9F6]/50 text-xs text-[#6B625D]">
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 border-b border-[#E8E1DA] bg-[#FAF9F6]/50 text-xs text-[#6B625D]">
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-[#795548] shrink-0" />
                 <span>{restaurant.address}, {restaurant.city}</span>
@@ -527,6 +557,70 @@ function RestaurantDetailContent() {
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-[#795548] shrink-0" />
                 <span>Capacity: {restaurant.totalSeatingCapacity} seats</span>
+              </div>
+              
+              {/* Live Opening Hours & Weekly Schedule Dropdown */}
+              <div className="relative">
+                <div 
+                  onClick={() => setShowWeeklyHours(prev => !prev)}
+                  className="flex items-center justify-between gap-1.5 cursor-pointer hover:text-[#201B18] transition p-1.5 -m-1.5 rounded-lg hover:bg-white border border-transparent hover:border-[#E8E1DA]"
+                  title="Click to view weekly schedule"
+                >
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-[#795548] shrink-0" />
+                    <div>
+                      {todaySchedule ? (
+                        todaySchedule.isClosed ? (
+                          <span className="font-semibold text-rose-700">Closed Today</span>
+                        ) : (
+                          <span>
+                            <strong className="text-emerald-700 font-semibold">Open: </strong>
+                            {todaySchedule.openTime} – {todaySchedule.closeTime}
+                          </span>
+                        )
+                      ) : (
+                        <span>Hours loading...</span>
+                      )}
+                    </div>
+                  </div>
+                  <ChevronDown className={`w-3.5 h-3.5 text-[#795548] transition-transform ${showWeeklyHours ? 'rotate-180' : ''}`} />
+                </div>
+
+                {/* Weekly Hours Popover */}
+                {showWeeklyHours && hours.length > 0 && (
+                  <div className="absolute right-0 top-full mt-2 w-64 p-3.5 bg-white rounded-2xl border border-[#E8E1DA] shadow-xl z-30 text-xs space-y-2 animate-in fade-in duration-150">
+                    <div className="flex items-center justify-between border-b border-[#E8E1DA] pb-1.5 font-bold text-[#201B18]">
+                      <span>Weekly Operating Hours</span>
+                      <span className="text-[10px] text-[#795548] font-normal">7-Day Schedule</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {[0, 1, 2, 3, 4, 5, 6].map(dayIndex => {
+                        const dayH = hours.find(h => h.dayOfWeek === dayIndex);
+                        const isToday = new Date().getDay() === dayIndex;
+                        return (
+                          <div 
+                            key={dayIndex}
+                            className={`flex justify-between items-center py-0.5 px-1.5 rounded-md ${
+                              isToday ? 'bg-[#FAF6F0] font-bold text-[#3B2924]' : 'text-[#6B625D]'
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              {dayNames[dayIndex]}
+                              {isToday && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>}
+                            </span>
+                            <span>
+                              {!dayH || dayH.isClosed ? (
+                                <span className="text-rose-600 font-medium">Closed</span>
+                              ) : (
+                                `${dayH.openTime} – ${dayH.closeTime}`
+                              )}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -545,11 +639,11 @@ function RestaurantDetailContent() {
             </div>
           </div>
 
-          {/* SECTION: TWO-COLUMN CINEMA BOOKING INTERFACE (45% Booking Details, 55% Seating Map) */}
+          {/* SECTION: CINEMA BOOKING INTERFACE (Desktop: 2-column, Mobile: Booking details -> Seating Map -> Contact/Pre-Order -> Submit) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             
-            {/* LEFT COLUMN: Booking Details (~45% / 5 cols) */}
-            <div className="lg:col-span-5 space-y-6">
+            {/* LEFT COLUMN: Booking Parameters & Checkout */}
+            <div className="lg:col-span-5 space-y-6 order-1">
               <div className="bg-white rounded-3xl border border-[#E8E1DA] p-6 shadow-md space-y-6">
                 
                 <div className="border-b border-[#E8E1DA] pb-4">
@@ -561,282 +655,303 @@ function RestaurantDetailContent() {
                   </h3>
                 </div>
 
-              {/* Step 1: Date & Guests Selection */}
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#6B625D] mb-1">
-                      Date
-                    </label>
-                    <input
-                      type="date"
-                      value={visitDate}
-                      min="2026-10-21"
-                      onChange={(e) => setVisitDate(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-[#E8E1DA] text-xs font-medium text-[#1C1C1C] bg-[#FAF9F6]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#6B625D] mb-1">
-                      Party Size
-                    </label>
-                    <select
-                      value={partySize}
-                      onChange={(e) => setPartySize(Number(e.target.value))}
-                      className="w-full px-3 py-2 rounded-xl border border-[#E8E1DA] text-xs font-medium text-[#1C1C1C] bg-[#FAF9F6]"
-                    >
-                      {[1, 2, 3, 4, 5, 6, 8, 10, 12, 14].map(num => (
-                        <option key={num} value={num}>
-                          {num} {num === 1 ? 'Guest' : 'Guests'}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Slots with Genuine Availability Indicators */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#6B625D]">
-                      Available Time Slots
-                    </label>
-                    <span className="text-[10px] text-[#795548]">
-                      Slot Duration: {restaurant.slotDurationMinutes} mins
-                    </span>
-                  </div>
-
-                  {checkingSlots ? (
-                    <div className="text-xs text-[#6B625D] py-4 text-center animate-pulse">
-                      Checking table availability...
+                {/* Step 1: Date & Guests Selection */}
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#6B625D] mb-1">
+                        Date
+                      </label>
+                      <input
+                        type="date"
+                        value={visitDate}
+                        min={todayStr}
+                        onChange={(e) => setVisitDate(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-[#E8E1DA] text-xs font-medium text-[#1C1C1C] bg-[#FAF9F6]"
+                      />
                     </div>
-                  ) : availableSlots.length === 0 ? (
-                    <div className="p-3 rounded-xl bg-amber-50 text-amber-800 text-xs border border-amber-200">
-                      The restaurant is closed or has no available hours on this date.
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">
-                      {availableSlots.map(slot => (
-                        <button
-                          key={slot.time}
-                          type="button"
-                          disabled={!slot.isAvailable}
-                          onClick={() => setSelectedSlot(slot.time)}
-                          className={`p-2 rounded-xl text-xs font-medium transition cursor-pointer flex flex-col items-center justify-center border ${
-                            selectedSlot === slot.time
-                              ? 'bg-[#4E342E] text-white border-[#4E342E] shadow-xs'
-                              : slot.isAvailable
-                              ? 'bg-[#FAF9F6] hover:bg-[#E8E1DA]/40 text-[#1C1C1C] border-[#E8E1DA]'
-                              : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed line-through'
-                          }`}
-                          title={slot.reason || `${slot.remainingSeats} seats available`}
-                        >
-                          <span>{slot.formattedTime}</span>
-                          <span className={`text-[9px] mt-0.5 ${selectedSlot === slot.time ? 'text-gray-200' : 'text-[#795548]'}`}>
-                            {slot.isAvailable ? `${slot.remainingSeats} seats` : 'Full'}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
 
-                {/* Selected Seats & Table Status (Cinema-style badge) */}
-                <div className="p-3 rounded-2xl bg-[#F8F5F0] border border-[#E8E1DA] space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#795548] flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-[#795548]" />
-                      Seat & Table Selection
-                    </span>
-                    {selectedTableId && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedTableId(null);
-                          setSelectedSeats([]);
-                          if (seatHoldToken) {
-                            db.releaseHold(seatHoldToken);
-                            setSeatHoldToken(null);
-                          }
-                        }}
-                        className="text-[11px] text-[#795548] hover:text-[#3B2924] underline cursor-pointer"
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#6B625D] mb-1">
+                        Party Size
+                      </label>
+                      <select
+                        value={partySize}
+                        onChange={(e) => setPartySize(Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border border-[#E8E1DA] text-xs font-medium text-[#1C1C1C] bg-[#FAF9F6]"
                       >
-                        Change
-                      </button>
+                        {[1, 2, 3, 4, 5, 6, 8, 10, 12, 14].map(num => (
+                          <option key={num} value={num}>
+                            {num} {num === 1 ? 'Guest' : 'Guests'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Slots with Genuine Availability Indicators */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#6B625D]">
+                        Available Time Slots
+                      </label>
+                      <span className="text-[10px] text-[#795548]">
+                        Slot Duration: {restaurant.slotDurationMinutes} mins
+                      </span>
+                    </div>
+
+                    {checkingSlots ? (
+                      <div className="text-xs text-[#6B625D] py-4 text-center animate-pulse flex items-center justify-center gap-2">
+                        <span className="w-3.5 h-3.5 border-2 border-[#795548] border-t-transparent rounded-full animate-spin"></span>
+                        Checking live table availability...
+                      </div>
+                    ) : availableSlots.length === 0 ? (
+                      <div className="p-3.5 rounded-xl bg-amber-50 text-amber-900 text-xs border border-amber-200 space-y-1">
+                        <div className="font-semibold flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-amber-700" />
+                          <span>Restaurant Closed or Fully Booked</span>
+                        </div>
+                        <p className="text-[11px] text-amber-800">
+                          {restaurant.name} has no available reservation slots on {visitDate}. Please select another date or check weekly hours above.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">
+                        {availableSlots.map(slot => (
+                          <button
+                            key={slot.time}
+                            type="button"
+                            disabled={!slot.isAvailable}
+                            onClick={() => setSelectedSlot(slot.time)}
+                            className={`p-2 rounded-xl text-xs font-medium transition cursor-pointer flex flex-col items-center justify-center border ${
+                              selectedSlot === slot.time
+                                ? 'bg-[#4E342E] text-white border-[#4E342E] shadow-xs'
+                                : slot.isAvailable
+                                ? 'bg-[#FAF9F6] hover:bg-[#E8E1DA]/40 text-[#1C1C1C] border-[#E8E1DA]'
+                                : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed line-through'
+                            }`}
+                            title={slot.reason || `${slot.remainingSeats} seats available`}
+                          >
+                            <span>{slot.formattedTime}</span>
+                            <span className={`text-[9px] mt-0.5 ${selectedSlot === slot.time ? 'text-gray-200' : 'text-[#795548]'}`}>
+                              {slot.isAvailable ? `${slot.remainingSeats} seats` : 'Full'}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
 
-                  {selectedTableId ? (
-                    <div className="space-y-1 text-xs">
-                      <div className="flex items-center justify-between font-semibold text-[#3B2924]">
-                        <span>Table:</span>
-                        <span>{tableSeats.find(t => t.tableId === selectedTableId)?.tableNumber || 'Selected Table'} ({tableSeats.find(t => t.tableId === selectedTableId)?.locationArea})</span>
-                      </div>
-                      <div className="flex items-center justify-between text-[#6B625D]">
-                        <span>Cinema Seats:</span>
-                        <div className="flex gap-1 flex-wrap justify-end">
-                          {selectedSeats.length > 0 ? (
-                            selectedSeats.map(s => (
-                              <span key={s} className="px-2 py-0.5 rounded-md bg-[#3B2924] text-white text-[10px] font-bold">
-                                Seat #{s}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-amber-800 font-medium">Whole Table</span>
-                          )}
-                        </div>
-                      </div>
-                      {seatHoldToken && (
-                        <div className="pt-1 text-[10px] text-amber-800 flex items-center gap-1 font-medium">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
-                          Held exclusively for you while booking is completed
-                        </div>
+                  {/* Selected Seats & Table Status (Cinema-style badge) */}
+                  <div className="p-3 rounded-2xl bg-[#F8F5F0] border border-[#E8E1DA] space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#795548] flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-[#795548]" />
+                        Seat & Table Selection
+                      </span>
+                      {selectedTableId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedTableId(null);
+                            setSelectedSeats([]);
+                            if (seatHoldToken) {
+                              db.releaseHold(seatHoldToken);
+                              setSeatHoldToken(null);
+                            }
+                          }}
+                          className="text-[11px] text-[#795548] hover:text-[#3B2924] underline cursor-pointer"
+                        >
+                          Change
+                        </button>
                       )}
                     </div>
+
+                    {selectedTableId ? (
+                      <div className="space-y-1 text-xs">
+                        <div className="flex items-center justify-between font-semibold text-[#3B2924]">
+                          <span>Table:</span>
+                          <span>{tableSeats.find(t => t.tableId === selectedTableId)?.tableNumber || 'Selected Table'} ({tableSeats.find(t => t.tableId === selectedTableId)?.locationArea})</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[#6B625D]">
+                          <span>Cinema Seats:</span>
+                          <div className="flex gap-1 flex-wrap justify-end">
+                            {selectedSeats.length > 0 ? (
+                              selectedSeats.map(s => (
+                                <span key={s} className="px-2 py-0.5 rounded-md bg-[#3B2924] text-white text-[10px] font-bold">
+                                  Seat #{s}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-amber-800 font-medium">Whole Table</span>
+                            )}
+                          </div>
+                        </div>
+                        {seatHoldToken && (
+                          <div className="pt-1 text-[10px] text-amber-800 flex items-center gap-1 font-medium">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                            Held exclusively for you while booking is completed
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-[#795548] italic">
+                        Choose your preferred seats or table from the interactive map.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* MOBILE ONLY: Seating map appears immediately after booking details on small screens */}
+                <div className="block lg:hidden pt-2 border-t border-[#E8E1DA]">
+                  <InteractiveSeatingMap
+                    restaurantName={restaurant.name}
+                    tables={tableSeats}
+                    partySize={partySize}
+                    selectedTableId={selectedTableId}
+                    selectedSeats={selectedSeats}
+                    onSelectTable={handleSelectTable}
+                    onSelectSeat={handleSelectSeat}
+                    isLoading={loadingSeatMap}
+                  />
+                </div>
+
+                {/* Order Summary Preview */}
+                <div className="border-t border-[#E8E1DA] pt-4 space-y-3">
+                  <div className="flex items-center justify-between text-xs font-semibold text-[#1C1C1C]">
+                    <span>Pre-Order Summary ({cartItemsList.length} items)</span>
+                    <span>${subtotal.toFixed(2)}</span>
+                  </div>
+
+                  {cartItemsList.length > 0 ? (
+                    <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                      {cartItemsList.map(({ item, quantity, lineTotal }) => (
+                        <div key={item!.id} className="flex justify-between text-xs text-[#6B625D]">
+                          <span>{quantity}x {item!.name}</span>
+                          <span>${lineTotal.toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
                   ) : (
-                    <p className="text-xs text-[#795548] italic">
-                      Choose your preferred seats or table from the interactive map on the right.
+                    <p className="text-xs text-[#6B625D] italic">
+                      No food pre-ordered yet. You can order upon arrival or add items from the menu.
                     </p>
                   )}
-                </div>
-              </div>
 
-              {/* Order Summary Preview */}
-              <div className="border-t border-[#E8E1DA] pt-4 space-y-3">
-                <div className="flex items-center justify-between text-xs font-semibold text-[#1C1C1C]">
-                  <span>Pre-Order Summary ({cartItemsList.length} items)</span>
-                  <span>${subtotal.toFixed(2)}</span>
+                  <div className="border-t border-[#E8E1DA]/70 pt-2 space-y-1 text-xs">
+                    <div className="flex justify-between text-[#6B625D]">
+                      <span>Estimated Tax (8.875%):</span>
+                      <span>${tax.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm font-bold text-[#1C1C1C] pt-1">
+                      <span>Estimated Total:</span>
+                      <span>${estimatedTotal.toFixed(2)}</span>
+                    </div>
+                  </div>
                 </div>
 
-                {cartItemsList.length > 0 ? (
-                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                    {cartItemsList.map(({ item, quantity, lineTotal }) => (
-                      <div key={item!.id} className="flex justify-between text-xs text-[#6B625D]">
-                        <span>{quantity}x {item!.name}</span>
-                        <span>${lineTotal.toFixed(2)}</span>
+                {/* Customer Contact Details */}
+                <div className="border-t border-[#E8E1DA] pt-4 space-y-3">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#6B625D]">
+                    Customer Contact
+                  </span>
+
+                  <div className="space-y-2 text-xs">
+                    <div>
+                      <label className="block text-[#6B625D] mb-0.5">Full Name</label>
+                      <input
+                        type="text"
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        className="w-full px-3 py-1.5 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[#6B625D] mb-0.5">Email</label>
+                        <input
+                          type="email"
+                          value={customerEmail}
+                          onChange={(e) => setCustomerEmail(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
+                        />
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-[#6B625D] italic">
-                    No food pre-ordered yet. You can order upon arrival or add items from the menu.
-                  </p>
-                )}
-
-                <div className="border-t border-[#E8E1DA]/70 pt-2 space-y-1 text-xs">
-                  <div className="flex justify-between text-[#6B625D]">
-                    <span>Estimated Tax (8.875%):</span>
-                    <span>${tax.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm font-bold text-[#1C1C1C] pt-1">
-                    <span>Estimated Total:</span>
-                    <span>${estimatedTotal.toFixed(2)}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Customer Contact Details */}
-              <div className="border-t border-[#E8E1DA] pt-4 space-y-3">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[#6B625D]">
-                  Customer Contact
-                </span>
-
-                <div className="space-y-2 text-xs">
-                  <div>
-                    <label className="block text-[#6B625D] mb-0.5">Full Name</label>
-                    <input
-                      type="text"
-                      value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[#6B625D] mb-0.5">Email</label>
-                      <input
-                        type="email"
-                        value={customerEmail}
-                        onChange={(e) => setCustomerEmail(e.target.value)}
-                        className="w-full px-3 py-1.5 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
-                      />
+                      <div>
+                        <label className="block text-[#6B625D] mb-0.5">Phone</label>
+                        <input
+                          type="tel"
+                          value={customerPhone}
+                          onChange={(e) => setCustomerPhone(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
+                        />
+                      </div>
                     </div>
                     <div>
-                      <label className="block text-[#6B625D] mb-0.5">Phone</label>
-                      <input
-                        type="tel"
-                        value={customerPhone}
-                        onChange={(e) => setCustomerPhone(e.target.value)}
-                        className="w-full px-3 py-1.5 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
+                      <label className="block text-[#6B625D] mb-0.5">Special Dietary / Seating Request</label>
+                      <textarea
+                        rows={2}
+                        value={specialRequests}
+                        onChange={(e) => setSpecialRequests(e.target.value)}
+                        placeholder="e.g. Anniversary celebration, peanut allergy, window seat preference"
+                        className="w-full px-3 py-1.5 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C] text-xs"
                       />
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-[#6B625D] mb-0.5">Special Dietary / Seating Request</label>
-                    <textarea
-                      rows={2}
-                      value={specialRequests}
-                      onChange={(e) => setSpecialRequests(e.target.value)}
-                      placeholder="e.g. Anniversary celebration, peanut allergy, window seat preference"
-                      className="w-full px-3 py-1.5 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C] text-xs"
-                    />
+                </div>
+
+                {/* Error Banner */}
+                {bookingError && (
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                    <span>{bookingError}</span>
                   </div>
-                </div>
-              </div>
-
-              {/* Error Banner */}
-              {bookingError && (
-                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                  <span>{bookingError}</span>
-                </div>
-              )}
-
-              {/* Submit Button */}
-              <button
-                type="button"
-                disabled={!selectedSlot || isSubmitting}
-                onClick={handleInitiateBooking}
-                className={`w-full py-3 px-4 rounded-xl font-semibold text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer ${
-                  selectedSlot && !isSubmitting
-                    ? 'bg-[#4E342E] hover:bg-[#795548] text-white'
-                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                }`}
-              >
-                {isSubmitting ? (
-                  <span>Reserving Table & Locking Order...</span>
-                ) : !selectedSlot ? (
-                  <span>Select a Time Slot Above</span>
-                ) : (
-                  <>
-                    <span>Confirm Reservation & Pre-Order</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
                 )}
-              </button>
 
-              <p className="text-[11px] text-[#6B625D] text-center leading-relaxed">
-                By booking, you agree to {restaurant.name}’s reservation policy. No pre-payment is deducted now; settlement occurs at the restaurant.
-              </p>
+                {/* Submit Button */}
+                <button
+                  type="button"
+                  disabled={!selectedSlot || isSubmitting}
+                  onClick={handleInitiateBooking}
+                  className={`w-full py-3 px-4 rounded-xl font-semibold text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer ${
+                    selectedSlot && !isSubmitting
+                      ? 'bg-[#4E342E] hover:bg-[#795548] text-white'
+                      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  {isSubmitting ? (
+                    <span>Reserving Table & Locking Order...</span>
+                  ) : !selectedSlot ? (
+                    <span>Select a Time Slot Above</span>
+                  ) : (
+                    <>
+                      <span>Confirm Reservation & Pre-Order</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
 
+                <p className="text-[11px] text-[#6B625D] text-center leading-relaxed">
+                  By booking, you agree to {restaurant.name}’s reservation policy. No pre-payment is deducted now; settlement occurs at the restaurant.
+                </p>
+
+              </div>
             </div>
-          </div>
 
-          {/* RIGHT COLUMN: Interactive Seating Map (~55% / 7 cols) */}
-          <div className="lg:col-span-7 sticky top-20">
-            <InteractiveSeatingMap
-              restaurantName={restaurant.name}
-              tables={tableSeats}
-              partySize={partySize}
-              selectedTableId={selectedTableId}
-              selectedSeats={selectedSeats}
-              onSelectTable={handleSelectTable}
-              onSelectSeat={handleSelectSeat}
-              isLoading={loadingSeatMap}
-            />
-          </div>
+            {/* RIGHT COLUMN: Interactive Seating Map for Desktop (~55% / 7 cols) */}
+            <div className="hidden lg:block lg:col-span-7 sticky top-20 order-2">
+              <InteractiveSeatingMap
+                restaurantName={restaurant.name}
+                tables={tableSeats}
+                partySize={partySize}
+                selectedTableId={selectedTableId}
+                selectedSeats={selectedSeats}
+                onSelectTable={handleSelectTable}
+                onSelectSeat={handleSelectSeat}
+                isLoading={loadingSeatMap}
+              />
+            </div>
 
-        </div>
+          </div>
 
         {/* SECTION: FULL MENU & ADVANCE PRE-ORDER */}
         <div className="bg-white rounded-3xl border border-[#E8E1DA] p-6 sm:p-8 shadow-xs space-y-6">
@@ -992,6 +1107,14 @@ function RestaurantDetailContent() {
 
       </div>
     )}
+
+      {/* DEDICATED REVIEWS & RATINGS SECTION */}
+      {step !== 'confirmed' && (
+        <RestaurantReviewsSection
+          restaurantId={restaurant.id}
+          restaurantName={restaurant.name}
+        />
+      )}
 
       {/* POPUP: EXISTING BOOKING CONFIRMATION MODAL */}
       {showDuplicateModal && activeBooking && (

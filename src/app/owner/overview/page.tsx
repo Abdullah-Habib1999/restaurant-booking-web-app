@@ -262,6 +262,31 @@ export default function OwnerOverviewPage() {
               </Link>
             </div>
           </div>
+
+          {/* Customer Reviews & Reputation Card */}
+          <div className="bg-white rounded-3xl border border-[#E8E1DA] p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-serif text-base font-bold text-[#1C1C1C]">
+                Guest Reviews & Rating
+              </h3>
+              <span className="text-xs font-bold text-amber-600 flex items-center gap-1">
+                ★ {restaurant?.rating && restaurant.reviewCount && restaurant.reviewCount > 0 ? `${restaurant.rating.toFixed(1)}/5` : 'No reviews'}
+              </span>
+            </div>
+
+            <p className="text-xs text-[#6B625D]">
+              {restaurant?.reviewCount && restaurant.reviewCount > 0 
+                ? `Total of ${restaurant.reviewCount} verified dining reviews from completed reservations.`
+                : 'No reviews yet. Completed diner bookings will prompt guest feedback.'}
+            </p>
+
+            <Link
+              href="/owner/reviews"
+              className="w-full py-2.5 px-3 rounded-xl bg-[#FAF9F6] border border-[#E8E1DA] hover:bg-[#E8E1DA] text-[#4E342E] text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+            >
+              Manage & Respond to Reviews <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
         </div>
 
       </div>

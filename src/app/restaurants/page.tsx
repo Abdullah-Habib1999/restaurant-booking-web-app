@@ -11,18 +11,21 @@ import {
   ChevronRight,
   Utensils,
   CheckCircle2,
-  Calendar
+  Calendar,
+  Clock
 } from 'lucide-react';
 import { db } from '@/lib/db';
-import { Restaurant } from '@/types';
+import { Restaurant, RestaurantHours } from '@/types';
 
 function RestaurantListingContent() {
   const searchParams = useSearchParams();
+  const todayStr = useMemo(() => new Date().toLocaleDateString('en-CA'), []);
   const initialQuery = searchParams.get('q') || '';
-  const initialDate = searchParams.get('date') || '2026-10-22';
+  const initialDate = searchParams.get('date') || todayStr;
   const initialGuests = searchParams.get('guests') || '2';
 
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [hoursMap, setHoursMap] = useState<Record<string, RestaurantHours[]>>({});
   const [loading, setLoading] = useState(true);
 
   // Filters
@@ -35,8 +38,18 @@ function RestaurantListingContent() {
     const load = async () => {
       setLoading(true);
       const data = await db.getRestaurants();
-      // Public directory shows only published restaurants
-      setRestaurants(data.filter(r => r.status === 'published'));
+      const published = data.filter(r => r.status === 'published');
+      setRestaurants(published);
+      
+      // Fetch hours for all published restaurants
+      const hMap: Record<string, RestaurantHours[]> = {};
+      await Promise.all(
+        published.map(async (r) => {
+          const h = await db.getRestaurantHours(r.id);
+          hMap[r.id] = h;
+        })
+      );
+      setHoursMap(hMap);
       setLoading(false);
     };
     load();
@@ -217,9 +230,20 @@ function RestaurantListingContent() {
                     className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-300"
                   />
                   <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-md px-3 py-1 rounded-full text-xs font-semibold text-[#201B18] flex items-center gap-1 shadow-2xs">
-                    <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                    <span>{restaurant.rating}</span>
-                    <span className="text-[#776B63] font-normal">({restaurant.reviewCount})</span>
+                    {restaurant.reviewCount && restaurant.reviewCount > 0 ? (
+                      <>
+                        <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                        <span>{restaurant.rating?.toFixed(1)}/5</span>
+                        <span className="text-[#776B63] font-normal">
+                          ({restaurant.reviewCount} {restaurant.reviewCount === 1 ? 'review' : 'reviews'})
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Star className="w-3.5 h-3.5 text-gray-300" />
+                        <span className="text-[#776B63] font-medium text-[11px]">No reviews yet</span>
+                      </>
+                    )}
                   </div>
 
                   <div className="absolute bottom-4 left-4 flex flex-wrap gap-1.5">
@@ -253,6 +277,24 @@ function RestaurantListingContent() {
                   </p>
 
                   <div className="flex flex-wrap gap-2 text-[10px] text-[#3B2924] pt-1">
+                    {/* Live Timing / Operating Hours */}
+                    {(() => {
+                      const rHours = hoursMap[restaurant.id];
+                      const todayH = rHours ? rHours.find(h => h.dayOfWeek === new Date().getDay()) : null;
+                      if (!todayH) return null;
+                      return (
+                        <span className={`px-2.5 py-1 rounded-lg border flex items-center gap-1 font-semibold ${
+                          todayH.isClosed 
+                            ? 'bg-rose-50 border-rose-200 text-rose-700' 
+                            : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                        }`}>
+                          <Clock className="w-3 h-3 shrink-0" />
+                          <span>
+                            {todayH.isClosed ? 'Closed Today' : `Open: ${todayH.openTime} – ${todayH.closeTime}`}
+                          </span>
+                        </span>
+                      );
+                    })()}
                     <span className="px-2.5 py-1 rounded-lg bg-[#F8F5F0] border border-[#E6DDD3]">
                       Up to {restaurant.maxPartySize} guests
                     </span>

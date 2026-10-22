@@ -208,9 +208,20 @@ export default function HomePage() {
                   className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-300"
                 />
                 <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-md px-2.5 py-1 rounded-full text-xs font-bold text-[#1C1C1C] flex items-center gap-1 shadow-sm">
-                  <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                  {restaurant.rating}
-                  <span className="text-[#6B625D] font-normal">({restaurant.reviewCount})</span>
+                  {restaurant.reviewCount && restaurant.reviewCount > 0 ? (
+                    <>
+                      <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                      <span>{restaurant.rating?.toFixed(1)}/5</span>
+                      <span className="text-[#6B625D] font-normal">
+                        ({restaurant.reviewCount} {restaurant.reviewCount === 1 ? 'review' : 'reviews'})
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Star className="w-3.5 h-3.5 text-gray-300" />
+                      <span className="text-[#6B625D] font-normal text-[11px]">No reviews yet</span>
+                    </>
+                  )}
                 </div>
                 <div className="absolute bottom-3 left-3 flex flex-wrap gap-1.5">
                   <span className="px-2.5 py-1 rounded-md bg-[#1C1C1C]/75 backdrop-blur-md text-white text-xs font-medium">

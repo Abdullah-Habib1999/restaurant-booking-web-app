@@ -38,6 +38,7 @@ export default function MenuManagementPage() {
   const [itemDescription, setItemDescription] = useState('');
   const [itemImageUrl, setItemImageUrl] = useState('');
   const [itemVeg, setItemVeg] = useState(false);
+  const [itemNonVeg, setItemNonVeg] = useState(false);
   const [itemGlutenFree, setItemGlutenFree] = useState(false);
 
   // Success Feedback
@@ -45,14 +46,30 @@ export default function MenuManagementPage() {
 
   const loadMenu = async () => {
     setLoading(true);
-    const [cats, items] = await Promise.all([
+    let [cats, items] = await Promise.all([
       db.getMenuCategories(targetRestaurantId),
       db.getMenuItems(targetRestaurantId)
     ]);
+
+    // If a newly registered restaurant has no categories yet, create default ones automatically
+    if (cats.length === 0) {
+      const defaultCategories = ['Starters & Appetizers', 'Main Courses', 'Chef Specialties', 'Desserts & Beverages'];
+      for (let i = 0; i < defaultCategories.length; i++) {
+        const cat = await db.saveMenuCategory({
+          id: `cat-${targetRestaurantId}-${Date.now()}-${i + 1}`,
+          restaurantId: targetRestaurantId,
+          name: defaultCategories[i],
+          displayOrder: i + 1,
+          isActive: true
+        });
+        cats.push(cat);
+      }
+    }
+
     setCategories(cats);
     setMenuItems(items);
-    if (cats.length > 0 && !itemCategory) {
-      setItemCategory(cats[0].id);
+    if (cats.length > 0) {
+      setItemCategory(prev => prev || cats[0].id);
     }
     setLoading(false);
   };
@@ -75,6 +92,9 @@ export default function MenuManagementPage() {
 
     await db.saveMenuCategory(newCat);
     setCategories(prev => [...prev, newCat]);
+    if (!itemCategory) {
+      setItemCategory(newCat.id);
+    }
     setNewCatName('');
     setFeedback(`Category "${newCat.name}" created.`);
     setTimeout(() => setFeedback(null), 3000);
@@ -97,18 +117,41 @@ export default function MenuManagementPage() {
 
   const handleSaveNewItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!itemName.trim() || !itemCategory) return;
+    if (!itemName.trim()) {
+      setFeedback('Error: Please enter an item name.');
+      return;
+    }
+    
+    let activeCatId = itemCategory;
+    if (!activeCatId) {
+      if (categories.length > 0) {
+        activeCatId = categories[0].id;
+      } else {
+        // Auto create category if none exist
+        const autoCat: MenuCategory = {
+          id: `cat-${targetRestaurantId}-${Date.now()}`,
+          restaurantId: targetRestaurantId,
+          name: 'Main Courses',
+          displayOrder: 1,
+          isActive: true
+        };
+        await db.saveMenuCategory(autoCat);
+        setCategories([autoCat]);
+        activeCatId = autoCat.id;
+      }
+    }
 
     const newItem: MenuItem = {
       id: `item-${Date.now()}`,
       restaurantId: targetRestaurantId,
-      categoryId: itemCategory,
+      categoryId: activeCatId,
       name: itemName.trim(),
       description: itemDescription.trim(),
-      price: Number(itemPrice),
+      price: Number(itemPrice) || 0,
       imageUrl: itemImageUrl.trim() || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80',
       isAvailable: true,
       isVegetarian: itemVeg,
+      isNonVegetarian: itemNonVeg,
       isVegan: false,
       isGlutenFree: itemGlutenFree,
       displayOrder: menuItems.length + 1
@@ -119,6 +162,9 @@ export default function MenuManagementPage() {
     setIsAddingItem(false);
     setItemName('');
     setItemDescription('');
+    setItemVeg(false);
+    setItemNonVeg(false);
+    setItemGlutenFree(false);
     setFeedback(`"${newItem.name}" added to menu successfully.`);
     setTimeout(() => setFeedback(null), 3000);
   };
@@ -138,7 +184,12 @@ export default function MenuManagementPage() {
         </div>
 
         <button
-          onClick={() => setIsAddingItem(!isAddingItem)}
+          onClick={() => {
+            if (categories.length > 0 && !itemCategory) {
+              setItemCategory(categories[0].id);
+            }
+            setIsAddingItem(!isAddingItem);
+          }}
           className="px-4 py-2.5 rounded-xl bg-[#4E342E] hover:bg-[#795548] text-white text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 self-start sm:self-auto shadow-xs"
         >
           <Plus className="w-4 h-4" />
@@ -147,8 +198,12 @@ export default function MenuManagementPage() {
       </div>
 
       {feedback && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-semibold flex items-center gap-2">
-          <Check className="w-4 h-4 text-emerald-600" />
+        <div className={`p-3.5 rounded-xl border text-xs font-semibold flex items-center gap-2 ${
+          feedback.startsWith('Error') 
+            ? 'bg-red-50 border-red-200 text-red-800' 
+            : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+        }`}>
+          {feedback.startsWith('Error') ? <X className="w-4 h-4 text-red-600" /> : <Check className="w-4 h-4 text-emerald-600" />}
           <span>{feedback}</span>
         </div>
       )}
@@ -165,7 +220,7 @@ export default function MenuManagementPage() {
               <label className="block font-semibold uppercase text-[#6B625D] mb-1">Item Name</label>
               <input
                 type="text"
-                placeholder="e.g. Risotto ai Funghi Porcini"
+                placeholder="e.g. Grilled Chicken Steak or Risotto"
                 value={itemName}
                 onChange={(e) => setItemName(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
@@ -223,15 +278,37 @@ export default function MenuManagementPage() {
               />
             </div>
 
-            <div className="flex items-center gap-6 pt-5">
+            <div className="flex items-center gap-6 pt-5 flex-wrap">
               <label className="flex items-center gap-2 cursor-pointer font-medium text-[#1C1C1C]">
                 <input
                   type="checkbox"
                   checked={itemVeg}
-                  onChange={(e) => setItemVeg(e.target.checked)}
-                  className="accent-[#795548]"
+                  onChange={(e) => {
+                    setItemVeg(e.target.checked);
+                    if (e.target.checked) setItemNonVeg(false);
+                  }}
+                  className="accent-emerald-700 w-4 h-4"
                 />
-                Vegetarian
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block"></span>
+                  Vegetarian
+                </span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer font-medium text-[#1C1C1C]">
+                <input
+                  type="checkbox"
+                  checked={itemNonVeg}
+                  onChange={(e) => {
+                    setItemNonVeg(e.target.checked);
+                    if (e.target.checked) setItemVeg(false);
+                  }}
+                  className="accent-red-700 w-4 h-4"
+                />
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-600 inline-block"></span>
+                  Non-Vegetarian
+                </span>
               </label>
 
               <label className="flex items-center gap-2 cursor-pointer font-medium text-[#1C1C1C]">
@@ -239,7 +316,7 @@ export default function MenuManagementPage() {
                   type="checkbox"
                   checked={itemGlutenFree}
                   onChange={(e) => setItemGlutenFree(e.target.checked)}
-                  className="accent-[#795548]"
+                  className="accent-[#795548] w-4 h-4"
                 />
                 Gluten-Free
               </label>
@@ -315,10 +392,27 @@ export default function MenuManagementPage() {
                           </div>
                         )}
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <h4 className="font-serif font-bold text-sm text-[#1C1C1C]">
                               {item.name}
                             </h4>
+                            {item.isVegetarian && (
+                              <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[10px] font-semibold flex items-center gap-1 border border-emerald-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                                Veg
+                              </span>
+                            )}
+                            {item.isNonVegetarian && (
+                              <span className="px-2 py-0.5 rounded-md bg-red-50 text-red-800 text-[10px] font-semibold flex items-center gap-1 border border-red-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-600"></span>
+                                Non-Veg
+                              </span>
+                            )}
+                            {item.isGlutenFree && (
+                              <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 text-[10px] font-semibold border border-amber-200">
+                                GF
+                              </span>
+                            )}
                             {!item.isAvailable && (
                               <span className="px-2 py-0.5 rounded-md bg-red-100 text-red-700 text-[10px] font-bold">
                                 Unavailable

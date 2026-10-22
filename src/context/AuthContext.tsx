@@ -160,6 +160,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }));
     await db.saveRestaurantHours(restaurantId, hours);
 
+    // 3b. Seed default starter menu categories so items can be added right away
+    const defaultCategories = ['Starters & Appetizers', 'Main Courses', 'Chef Specialties', 'Desserts & Beverages'];
+    for (let cIdx = 0; cIdx < defaultCategories.length; cIdx++) {
+      await db.saveMenuCategory({
+        id: `cat-${restaurantId}-${cIdx + 1}`,
+        restaurantId,
+        name: defaultCategories[cIdx],
+        displayOrder: cIdx + 1,
+        isActive: true
+      });
+    }
+
     // 4. Create User Profile
     const newUser: UserProfile = {
       id: userId,

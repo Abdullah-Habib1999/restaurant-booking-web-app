@@ -465,8 +465,15 @@ function RestaurantDetailContent() {
                                 {item.name}
                               </h4>
                               {item.isVegetarian && (
-                                <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-semibold">
+                                <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-semibold flex items-center gap-1 border border-emerald-200">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 inline-block"></span>
                                   Vegetarian
+                                </span>
+                              )}
+                              {item.isNonVegetarian && (
+                                <span className="px-2 py-0.5 rounded-md bg-red-50 text-red-700 text-[10px] font-semibold flex items-center gap-1 border border-red-200">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-red-600 inline-block"></span>
+                                  Non-Veg
                                 </span>
                               )}
                               {item.isGlutenFree && (

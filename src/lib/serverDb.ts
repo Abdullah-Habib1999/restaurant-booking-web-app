@@ -114,6 +114,7 @@ sqlite.exec(`
     imageUrl TEXT,
     isAvailable INTEGER NOT NULL DEFAULT 1,
     isVegetarian INTEGER NOT NULL DEFAULT 0,
+    isNonVegetarian INTEGER NOT NULL DEFAULT 0,
     isVegan INTEGER NOT NULL DEFAULT 0,
     isGlutenFree INTEGER NOT NULL DEFAULT 0,
     preparationNotes TEXT,
@@ -148,6 +149,13 @@ sqlite.exec(`
     updatedAt TEXT NOT NULL
   );
 `);
+
+// Self-migration for existing databases: ensure isNonVegetarian column exists
+try {
+  sqlite.exec('ALTER TABLE menu_items ADD COLUMN isNonVegetarian INTEGER NOT NULL DEFAULT 0');
+} catch (e) {
+  // column already exists
+}
 
 // Seed Initial Data if database is freshly created
 const userCount = (sqlite.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number }).count;
@@ -372,6 +380,7 @@ export const serverDb = {
       ...r,
       isAvailable: Boolean(r.isAvailable),
       isVegetarian: Boolean(r.isVegetarian),
+      isNonVegetarian: Boolean(r.isNonVegetarian),
       isVegan: Boolean(r.isVegan),
       isGlutenFree: Boolean(r.isGlutenFree)
     }));
@@ -383,21 +392,21 @@ export const serverDb = {
       sqlite.prepare(`
         UPDATE menu_items SET 
           categoryId = ?, name = ?, description = ?, price = ?, imageUrl = ?,
-          isAvailable = ?, isVegetarian = ?, isGlutenFree = ?, preparationNotes = ?
+          isAvailable = ?, isVegetarian = ?, isNonVegetarian = ?, isGlutenFree = ?, preparationNotes = ?
         WHERE id = ?
       `).run(
         m.categoryId, m.name, m.description, m.price, m.imageUrl || null,
-        m.isAvailable ? 1 : 0, m.isVegetarian ? 1 : 0, m.isGlutenFree ? 1 : 0,
+        m.isAvailable ? 1 : 0, m.isVegetarian ? 1 : 0, m.isNonVegetarian ? 1 : 0, m.isGlutenFree ? 1 : 0,
         m.preparationNotes || null, m.id
       );
     } else {
       sqlite.prepare(`
         INSERT INTO menu_items (
-          id, restaurantId, categoryId, name, description, price, imageUrl, isAvailable, isVegetarian, isGlutenFree, preparationNotes, displayOrder
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          id, restaurantId, categoryId, name, description, price, imageUrl, isAvailable, isVegetarian, isNonVegetarian, isGlutenFree, preparationNotes, displayOrder
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         m.id, m.restaurantId, m.categoryId, m.name, m.description, m.price, m.imageUrl || null,
-        m.isAvailable ? 1 : 0, m.isVegetarian ? 1 : 0, m.isGlutenFree ? 1 : 0,
+        m.isAvailable ? 1 : 0, m.isVegetarian ? 1 : 0, m.isNonVegetarian ? 1 : 0, m.isGlutenFree ? 1 : 0,
         m.preparationNotes || null, m.displayOrder
       );
     }

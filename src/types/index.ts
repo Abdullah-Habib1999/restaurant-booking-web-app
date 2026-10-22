@@ -50,6 +50,7 @@ export interface MenuItem {
   imageUrl?: string;
   isAvailable: boolean;
   isVegetarian: boolean;
+  isNonVegetarian?: boolean;
   isVegan: boolean;
   isGlutenFree: boolean;
   preparationNotes?: string;

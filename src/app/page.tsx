@@ -205,7 +205,7 @@ export default function HomePage() {
                 <img
                   src={restaurant.coverImageUrl}
                   alt={restaurant.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-300"
                 />
                 <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-md px-2.5 py-1 rounded-full text-xs font-bold text-[#1C1C1C] flex items-center gap-1 shadow-sm">
                   <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />

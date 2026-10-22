@@ -214,7 +214,7 @@ function RestaurantListingContent() {
                   <img
                     src={restaurant.coverImageUrl}
                     alt={restaurant.name}
-                    className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-500"
+                    className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-300"
                   />
                   <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-md px-3 py-1 rounded-full text-xs font-semibold text-[#201B18] flex items-center gap-1 shadow-2xs">
                     <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />

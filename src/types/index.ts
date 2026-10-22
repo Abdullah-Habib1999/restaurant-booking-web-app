@@ -31,13 +31,38 @@ export interface RestaurantClosure {
   reason?: string;
 }
 
+export type TableShape = 'round' | 'square' | 'rectangle';
+
 export interface DiningTable {
   id: string;
   restaurantId: string;
-  tableNumber: string; // e.g. "T-1", "Table 4", "VIP-A"
+  tableNumber: string; // e.g. "T-01", "Table 4", "VIP-A"
   capacity: number;
   locationArea: string; // "Main Dining Room", "Patio", "Window", "Terrace", "Private Room"
   isActive: boolean;
+  shape?: TableShape; // 'round' | 'square' | 'rectangle'
+  posX?: number; // X coordinate on floor plan (0-100 percentage or canvas px)
+  posY?: number; // Y coordinate on floor plan (0-100 percentage or canvas px)
+  rotation?: number; // in degrees
+}
+
+export interface TableSeatStatus {
+  tableId: string;
+  tableNumber: string;
+  capacity: number;
+  shape: TableShape;
+  locationArea: string;
+  isActive: boolean;
+  posX: number;
+  posY: number;
+  status: 'available' | 'selected' | 'booked' | 'held' | 'unavailable';
+  heldExpiresAt?: number; // timestamp
+  bookedByReference?: string;
+  seats: {
+    seatNumber: number;
+    seatId: string;
+    status: 'available' | 'selected' | 'booked' | 'held' | 'unavailable';
+  }[];
 }
 
 export interface MenuItem {
@@ -131,6 +156,7 @@ export interface Reservation {
   status: ReservationStatus;
   assignedTableId?: string;
   assignedTableName?: string;
+  assignedSeatNumbers?: number[]; // e.g. [1, 2, 3, 4]
   specialRequests?: string;
   orderSubtotal: number;
   orderTax: number;

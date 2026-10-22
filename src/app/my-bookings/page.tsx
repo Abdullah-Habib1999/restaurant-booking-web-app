@@ -219,9 +219,16 @@ export default function MyBookingsPage() {
                     {selectedBooking.restaurantName}
                   </h3>
                   {selectedBooking.assignedTableName && (
-                    <span className="inline-block mt-1 text-xs font-semibold text-[#4E342E] px-2 py-0.5 rounded-md bg-[#FAF9F6] border border-[#E8E1DA]">
-                      Assigned: {selectedBooking.assignedTableName}
-                    </span>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <span className="inline-block text-xs font-semibold text-[#4E342E] px-2.5 py-0.5 rounded-md bg-[#FAF9F6] border border-[#E8E1DA]">
+                        Table: {selectedBooking.assignedTableName}
+                      </span>
+                      {selectedBooking.assignedSeatNumbers && selectedBooking.assignedSeatNumbers.length > 0 && (
+                        <span className="inline-block text-xs font-bold text-[#795548] px-2.5 py-0.5 rounded-md bg-[#F4EBE1] border border-[#795548]/30">
+                          Seats: {selectedBooking.assignedSeatNumbers.map(s => `#${s}`).join(', ')}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
 

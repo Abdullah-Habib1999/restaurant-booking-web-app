@@ -27,10 +27,12 @@ import {
   MenuCategory, 
   MenuItem, 
   TimeSlotAvailability,
-  RestaurantHours 
+  RestaurantHours,
+  TableSeatStatus 
 } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { Suspense } from 'react';
+import InteractiveSeatingMap from '@/components/InteractiveSeatingMap';
 
 function RestaurantDetailContent() {
   const params = useParams();
@@ -44,6 +46,13 @@ function RestaurantDetailContent() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [hours, setHours] = useState<RestaurantHours[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Seating Map State
+  const [tableSeats, setTableSeats] = useState<TableSeatStatus[]>([]);
+  const [loadingSeatMap, setLoadingSeatMap] = useState<boolean>(false);
+  const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
+  const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
+  const [seatHoldToken, setSeatHoldToken] = useState<string | null>(null);
 
   // Booking Parameters
   const [visitDate, setVisitDate] = useState<string>(
@@ -140,6 +149,137 @@ function RestaurantDetailContent() {
     };
   }, [restaurant, visitDate, partySize]);
 
+  // Load real-time Seating Map whenever restaurant, visitDate, or selectedSlot changes
+  useEffect(() => {
+    if (!restaurant) return;
+    let isSubscribed = true;
+
+    const loadSeatMap = async () => {
+      setLoadingSeatMap(true);
+      try {
+        const data = await db.getTableSeatsAvailability(
+          restaurant.id, 
+          visitDate, 
+          selectedSlot || undefined, 
+          partySize
+        );
+        if (isSubscribed) {
+          setTableSeats(data);
+          // If a table is already selected, verify it's still available
+          if (selectedTableId) {
+            const currentTab = data.find(t => t.tableId === selectedTableId);
+            if (!currentTab || currentTab.status === 'booked' || currentTab.status === 'unavailable') {
+              setSelectedTableId(null);
+              setSelectedSeats([]);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load seating map:', err);
+      } finally {
+        if (isSubscribed) setLoadingSeatMap(false);
+      }
+    };
+
+    loadSeatMap();
+
+    // Auto-refresh every 8s to catch real-time seat holds and bookings by other customers
+    const timer = setInterval(loadSeatMap, 8000);
+    return () => {
+      isSubscribed = false;
+      clearInterval(timer);
+    };
+  }, [restaurant, visitDate, selectedSlot, partySize]);
+
+  // Handle table selection on floor plan
+  const handleSelectTable = (tableId: string, initialSeats?: number[]) => {
+    const table = tableSeats.find(t => t.tableId === tableId);
+    if (!table || table.status === 'booked' || table.status === 'unavailable') return;
+
+    if (selectedTableId === tableId) {
+      // Toggle off
+      setSelectedTableId(null);
+      setSelectedSeats([]);
+      if (seatHoldToken) {
+        db.releaseHold(seatHoldToken);
+        setSeatHoldToken(null);
+      }
+      return;
+    }
+
+    setSelectedTableId(tableId);
+    
+    // Auto-select required party size seats if available, or use initialSeats
+    if (initialSeats && initialSeats.length > 0) {
+      setSelectedSeats(initialSeats);
+    } else {
+      const availSeats = table.seats.filter(s => s.status === 'available').map(s => s.seatNumber);
+      const seatsToPick = availSeats.slice(0, partySize);
+      setSelectedSeats(seatsToPick);
+
+      // Attempt temporary hold
+      if (restaurant && selectedSlot && seatsToPick.length > 0) {
+        db.holdSeats({
+          restaurantId: restaurant.id,
+          tableId,
+          reservationDate: visitDate,
+          startTime: selectedSlot,
+          seatNumbers: seatsToPick,
+          customerId: user?.id || 'cust-1'
+        }).then(res => {
+          if (res.success && res.holdToken) {
+            setSeatHoldToken(res.holdToken);
+          }
+        });
+      }
+    }
+  };
+
+  // Handle individual seat selection cinema-style
+  const handleSelectSeat = (tableId: string, seatNumber: number) => {
+    const table = tableSeats.find(t => t.tableId === tableId);
+    if (!table) return;
+
+    const seat = table.seats.find(s => s.seatNumber === seatNumber);
+    if (!seat || seat.status === 'booked' || seat.status === 'unavailable') return;
+
+    if (selectedTableId !== tableId) {
+      setSelectedTableId(tableId);
+      setSelectedSeats([seatNumber]);
+      return;
+    }
+
+    // Same table: toggle seat
+    let updatedSeats: number[];
+    if (selectedSeats.includes(seatNumber)) {
+      updatedSeats = selectedSeats.filter(s => s !== seatNumber);
+    } else {
+      if (selectedSeats.length >= partySize) {
+        // Replace oldest or replace all if party size reached
+        updatedSeats = [...selectedSeats.slice(1), seatNumber];
+      } else {
+        updatedSeats = [...selectedSeats, seatNumber];
+      }
+    }
+    setSelectedSeats(updatedSeats);
+
+    // Hold update
+    if (restaurant && selectedSlot && updatedSeats.length > 0) {
+      db.holdSeats({
+        restaurantId: restaurant.id,
+        tableId,
+        reservationDate: visitDate,
+        startTime: selectedSlot,
+        seatNumbers: updatedSeats,
+        customerId: user?.id || 'cust-1'
+      }).then(res => {
+        if (res.success && res.holdToken) {
+          setSeatHoldToken(res.holdToken);
+        }
+      });
+    }
+  };
+
   // Cart operations
   const updateQuantity = (itemId: string, delta: number) => {
     setCart(prev => {
@@ -211,6 +351,8 @@ function RestaurantDetailContent() {
       reservationDate: visitDate,
       startTime: selectedSlot,
       specialRequests,
+      selectedTableId: selectedTableId || undefined,
+      selectedSeats: selectedSeats.length > 0 ? selectedSeats : undefined,
       items: itemsPayload
     });
 
@@ -219,12 +361,19 @@ function RestaurantDetailContent() {
     if (result.success && result.reservation) {
       setConfirmedBookingReference(result.reservation.bookingReference);
       setStep('confirmed');
-      // Refresh available slots immediately
-      const slots = await db.checkSlotAvailability(restaurant.id, visitDate, partySize);
+      // Refresh available slots and seat map immediately
+      const [slots, seatData] = await Promise.all([
+        db.checkSlotAvailability(restaurant.id, visitDate, partySize),
+        db.getTableSeatsAvailability(restaurant.id, visitDate, selectedSlot, partySize)
+      ]);
       setAvailableSlots(slots);
+      setTableSeats(seatData);
       checkActiveBooking();
     } else {
       setBookingError(result.error || 'Failed to complete booking. Please try another time.');
+      // Refresh seat map to reveal what became booked/held
+      const seatData = await db.getTableSeatsAvailability(restaurant.id, visitDate, selectedSlot, partySize);
+      setTableSeats(seatData);
     }
   };
 
@@ -291,6 +440,15 @@ function RestaurantDetailContent() {
               <span className="text-[#6B625D]">Party Size:</span>
               <strong className="text-[#1C1C1C]">{partySize} {partySize === 1 ? 'Guest' : 'Guests'}</strong>
             </div>
+            {selectedTableId && (
+              <div className="flex justify-between items-center bg-[#F4EBE1]/60 px-2.5 py-1.5 rounded-lg border border-[#795548]/20">
+                <span className="text-[#4E342E] font-medium">Selected Table & Seats:</span>
+                <span className="font-bold text-[#4E342E]">
+                  {tableSeats.find(t => t.tableId === selectedTableId)?.tableNumber || 'Assigned Table'}
+                  {selectedSeats.length > 0 && ` • Seats: ${selectedSeats.map(s => `#${s}`).join(', ')}`}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-[#6B625D]">Pre-Ordered Items:</span>
               <strong className="text-[#1C1C1C]">{cartItemsList.length} dishes</strong>
@@ -325,238 +483,83 @@ function RestaurantDetailContent() {
 
       {/* ACTIVE RESERVATION & PRE-ORDER WORKFLOW */}
       {step !== 'confirmed' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <div className="space-y-10">
           
-          {/* LEFT 7 COLS: Restaurant Overview & Interactive Menu */}
-          <div className="lg:col-span-7 space-y-8">
-            
-            {/* Header Hero Banner */}
-            <div className="bg-white rounded-3xl border border-[#E8E1DA] overflow-hidden shadow-xs">
-              <div className="relative h-64 sm:h-80 w-full bg-gray-100">
-                <img
-                  src={restaurant.coverImageUrl}
-                  alt={restaurant.name}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                <div className="absolute bottom-6 left-6 right-6 text-white">
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {restaurant.cuisineType.map(c => (
-                      <span key={c} className="px-2.5 py-0.5 rounded-md bg-white/20 backdrop-blur-md text-xs font-medium">
-                        {c}
-                      </span>
-                    ))}
-                    <span className="px-2.5 py-0.5 rounded-md bg-[#795548] text-xs font-semibold">
-                      {restaurant.priceTier}
+          {/* Header Hero Banner */}
+          <div className="bg-white rounded-3xl border border-[#E8E1DA] overflow-hidden shadow-xs">
+            <div className="relative h-64 sm:h-80 w-full bg-gray-100">
+              <img
+                src={restaurant.coverImageUrl}
+                alt={restaurant.name}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+              <div className="absolute bottom-6 left-6 right-6 text-white">
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {restaurant.cuisineType.map(c => (
+                    <span key={c} className="px-2.5 py-0.5 rounded-md bg-white/20 backdrop-blur-md text-xs font-medium">
+                      {c}
                     </span>
-                  </div>
-                  <h1 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight">
-                    {restaurant.name}
-                  </h1>
-                  <p className="text-sm text-gray-200 mt-1">
-                    {restaurant.tagline}
-                  </p>
+                  ))}
+                  <span className="px-2.5 py-0.5 rounded-md bg-[#795548] text-xs font-semibold">
+                    {restaurant.priceTier}
+                  </span>
                 </div>
-              </div>
-
-              {/* Quick Details Bar */}
-              <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-4 border-b border-[#E8E1DA] bg-[#FAF9F6]/50 text-xs text-[#6B625D]">
-                <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-[#795548] shrink-0" />
-                  <span>{restaurant.address}, {restaurant.city}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="w-4 h-4 text-[#795548] shrink-0" />
-                  <span>{restaurant.phone}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-[#795548] shrink-0" />
-                  <span>Capacity: {restaurant.totalSeatingCapacity} seats</span>
-                </div>
-              </div>
-
-              <div className="p-6">
-                <h3 className="font-serif text-base font-bold text-[#1C1C1C]">About the Venue</h3>
-                <p className="text-sm text-[#6B625D] mt-2 leading-relaxed">
-                  {restaurant.description}
+                <h1 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight">
+                  {restaurant.name}
+                </h1>
+                <p className="text-sm text-gray-200 mt-1">
+                  {restaurant.tagline}
                 </p>
-                <div className="mt-4 p-3 rounded-xl bg-[#FAF9F6] border border-[#E8E1DA] text-xs text-[#6B625D] flex items-start gap-2">
-                  <Info className="w-4 h-4 text-[#795548] shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-semibold text-[#1C1C1C]">Cancellation Policy: </span>
-                    {restaurant.cancellationPolicy}
-                  </div>
-                </div>
               </div>
             </div>
 
-            {/* FULL MENU WITH CATEGORIES & PRE-ORDER ADDITION */}
-            <div className="bg-white rounded-3xl border border-[#E8E1DA] p-6 sm:p-8 shadow-xs space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {/* Quick Details Bar */}
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-4 border-b border-[#E8E1DA] bg-[#FAF9F6]/50 text-xs text-[#6B625D]">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-[#795548] shrink-0" />
+                <span>{restaurant.address}, {restaurant.city}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Phone className="w-4 h-4 text-[#795548] shrink-0" />
+                <span>{restaurant.phone}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-[#795548] shrink-0" />
+                <span>Capacity: {restaurant.totalSeatingCapacity} seats</span>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <h3 className="font-serif text-base font-bold text-[#1C1C1C]">About the Venue</h3>
+              <p className="text-sm text-[#6B625D] mt-2 leading-relaxed">
+                {restaurant.description}
+              </p>
+              <div className="mt-4 p-3 rounded-xl bg-[#FAF9F6] border border-[#E8E1DA] text-xs text-[#6B625D] flex items-start gap-2">
+                <Info className="w-4 h-4 text-[#795548] shrink-0 mt-0.5" />
                 <div>
-                  <h2 className="font-serif text-2xl font-bold text-[#1C1C1C]">
-                    Chef’s Menu & Advance Pre-Order
-                  </h2>
-                  <p className="text-xs text-[#6B625D] mt-1">
-                    Select courses in advance to guarantee kitchen prep upon your arrival, or skip and order at the table.
-                  </p>
+                  <span className="font-semibold text-[#1C1C1C]">Cancellation Policy: </span>
+                  {restaurant.cancellationPolicy}
                 </div>
-
-                {cartItemsList.length > 0 && (
-                  <div className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full bg-[#FAF9F6] border border-[#795548]/30 text-[#4E342E]">
-                    <ShoppingBag className="w-4 h-4 text-[#795548]" />
-                    {cartItemsList.length} items selected (${subtotal.toFixed(2)})
-                  </div>
-                )}
               </div>
-
-              {/* Category Pills */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-[#E8E1DA]">
-                <button
-                  onClick={() => setActiveCategory('all')}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition cursor-pointer ${
-                    activeCategory === 'all'
-                      ? 'bg-[#4E342E] text-white font-semibold'
-                      : 'bg-[#FAF9F6] text-[#6B625D] hover:text-[#1C1C1C]'
-                  }`}
-                >
-                  All Categories ({menuItems.length})
-                </button>
-                {categories.map(cat => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setActiveCategory(cat.id)}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition cursor-pointer ${
-                      activeCategory === cat.id
-                        ? 'bg-[#4E342E] text-white font-semibold'
-                        : 'bg-[#FAF9F6] text-[#6B625D] hover:text-[#1C1C1C]'
-                    }`}
-                  >
-                    {cat.name}
-                  </button>
-                ))}
-              </div>
-
-              {/* Items List */}
-              <div className="space-y-4">
-                {menuItems
-                  .filter(m => activeCategory === 'all' || m.categoryId === activeCategory)
-                  .map(item => {
-                    const qty = cart[item.id] || 0;
-                    return (
-                      <div
-                        key={item.id}
-                        className={`p-4 rounded-2xl border transition-all flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center ${
-                          qty > 0 
-                            ? 'bg-[#FAF9F6] border-[#795548]/40 shadow-xs' 
-                            : 'bg-white border-[#E8E1DA]/80 hover:border-[#E8E1DA]'
-                        } ${!item.isAvailable ? 'opacity-60 bg-gray-50' : ''}`}
-                      >
-                        {/* Image & Text */}
-                        <div className="flex gap-4 items-start flex-1">
-                          {item.imageUrl && (
-                            <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-100 shrink-0">
-                              <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
-                            </div>
-                          )}
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h4 className="font-serif font-bold text-base text-[#1C1C1C]">
-                                {item.name}
-                              </h4>
-                              {item.isVegetarian && (
-                                <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-semibold flex items-center gap-1 border border-emerald-200">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 inline-block"></span>
-                                  Vegetarian
-                                </span>
-                              )}
-                              {item.isNonVegetarian && (
-                                <span className="px-2 py-0.5 rounded-md bg-red-50 text-red-700 text-[10px] font-semibold flex items-center gap-1 border border-red-200">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-red-600 inline-block"></span>
-                                  Non-Veg
-                                </span>
-                              )}
-                              {item.isGlutenFree && (
-                                <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 text-[10px] font-semibold">
-                                  Gluten-Free
-                                </span>
-                              )}
-                              {!item.isAvailable && (
-                                <span className="px-2 py-0.5 rounded-md bg-red-100 text-red-700 text-[10px] font-bold">
-                                  Sold Out
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-[#6B625D] mt-1 leading-relaxed">
-                              {item.description}
-                            </p>
-                            {item.preparationNotes && (
-                              <p className="text-[11px] text-[#795548] mt-1 italic">
-                                Note: {item.preparationNotes}
-                              </p>
-                            )}
-                            <div className="mt-2 font-semibold text-sm text-[#1C1C1C]">
-                              ${item.price.toFixed(2)}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Quantity Controls */}
-                        <div className="shrink-0 self-end sm:self-center">
-                          {!item.isAvailable ? (
-                            <span className="text-xs text-red-600 font-medium">Currently Unavailable</span>
-                          ) : qty === 0 ? (
-                            <button
-                              type="button"
-                              onClick={() => updateQuantity(item.id, 1)}
-                              className="px-3.5 py-1.5 rounded-xl border border-[#795548] text-[#795548] hover:bg-[#795548] hover:text-white text-xs font-semibold transition cursor-pointer flex items-center gap-1"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                              Add to Pre-Order
-                            </button>
-                          ) : (
-                            <div className="flex items-center gap-2 bg-white border border-[#E8E1DA] rounded-xl p-1 shadow-xs">
-                              <button
-                                type="button"
-                                onClick={() => updateQuantity(item.id, -1)}
-                                className="w-7 h-7 rounded-lg hover:bg-[#FAF9F6] text-[#4E342E] flex items-center justify-center transition cursor-pointer"
-                              >
-                                <Minus className="w-3.5 h-3.5" />
-                              </button>
-                              <span className="w-6 text-center font-bold text-sm text-[#1C1C1C]">
-                                {qty}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => updateQuantity(item.id, 1)}
-                                className="w-7 h-7 rounded-lg hover:bg-[#FAF9F6] text-[#4E342E] flex items-center justify-center transition cursor-pointer"
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-
             </div>
-
           </div>
 
-          {/* RIGHT 5 COLS: Step-by-Step Booking Widget (Sticky) */}
-          <div className="lg:col-span-5 sticky top-24 space-y-6">
-            <div className="bg-white rounded-3xl border border-[#E8E1DA] p-6 shadow-md space-y-6">
-              
-              <div className="border-b border-[#E8E1DA] pb-4">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[#795548]">
-                  Step 1 & 2 • Verification
-                </span>
-                <h3 className="font-serif text-xl font-bold text-[#1C1C1C] mt-0.5">
-                  Reserve Your Table
-                </h3>
-              </div>
+          {/* SECTION: TWO-COLUMN CINEMA BOOKING INTERFACE (45% Booking Details, 55% Seating Map) */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            
+            {/* LEFT COLUMN: Booking Details (~45% / 5 cols) */}
+            <div className="lg:col-span-5 space-y-6">
+              <div className="bg-white rounded-3xl border border-[#E8E1DA] p-6 shadow-md space-y-6">
+                
+                <div className="border-b border-[#E8E1DA] pb-4">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#795548]">
+                    Reservation Details • Cinema-Style Selection
+                  </span>
+                  <h3 className="font-serif text-xl font-bold text-[#1C1C1C] mt-0.5">
+                    Reserve Your Table & Seats
+                  </h3>
+                </div>
 
               {/* Step 1: Date & Guests Selection */}
               <div className="space-y-4">
@@ -635,6 +638,65 @@ function RestaurantDetailContent() {
                         </button>
                       ))}
                     </div>
+                  )}
+                </div>
+
+                {/* Selected Seats & Table Status (Cinema-style badge) */}
+                <div className="p-3 rounded-2xl bg-[#F8F5F0] border border-[#E8E1DA] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#795548] flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-[#795548]" />
+                      Seat & Table Selection
+                    </span>
+                    {selectedTableId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedTableId(null);
+                          setSelectedSeats([]);
+                          if (seatHoldToken) {
+                            db.releaseHold(seatHoldToken);
+                            setSeatHoldToken(null);
+                          }
+                        }}
+                        className="text-[11px] text-[#795548] hover:text-[#3B2924] underline cursor-pointer"
+                      >
+                        Change
+                      </button>
+                    )}
+                  </div>
+
+                  {selectedTableId ? (
+                    <div className="space-y-1 text-xs">
+                      <div className="flex items-center justify-between font-semibold text-[#3B2924]">
+                        <span>Table:</span>
+                        <span>{tableSeats.find(t => t.tableId === selectedTableId)?.tableNumber || 'Selected Table'} ({tableSeats.find(t => t.tableId === selectedTableId)?.locationArea})</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[#6B625D]">
+                        <span>Cinema Seats:</span>
+                        <div className="flex gap-1 flex-wrap justify-end">
+                          {selectedSeats.length > 0 ? (
+                            selectedSeats.map(s => (
+                              <span key={s} className="px-2 py-0.5 rounded-md bg-[#3B2924] text-white text-[10px] font-bold">
+                                Seat #{s}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-amber-800 font-medium">Whole Table</span>
+                          )}
+                        </div>
+                      </div>
+                      {seatHoldToken && (
+                        <div className="pt-1 text-[10px] text-amber-800 flex items-center gap-1 font-medium">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                          Held exclusively for you while booking is completed
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-[#795548] italic">
+                      Choose your preferred seats or table from the interactive map on the right.
+                    </p>
                   )}
                 </div>
               </div>
@@ -760,8 +822,176 @@ function RestaurantDetailContent() {
             </div>
           </div>
 
+          {/* RIGHT COLUMN: Interactive Seating Map (~55% / 7 cols) */}
+          <div className="lg:col-span-7 sticky top-20">
+            <InteractiveSeatingMap
+              restaurantName={restaurant.name}
+              tables={tableSeats}
+              partySize={partySize}
+              selectedTableId={selectedTableId}
+              selectedSeats={selectedSeats}
+              onSelectTable={handleSelectTable}
+              onSelectSeat={handleSelectSeat}
+              isLoading={loadingSeatMap}
+            />
+          </div>
+
         </div>
-      )}
+
+        {/* SECTION: FULL MENU & ADVANCE PRE-ORDER */}
+        <div className="bg-white rounded-3xl border border-[#E8E1DA] p-6 sm:p-8 shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="font-serif text-2xl font-bold text-[#1C1C1C]">
+                Chef’s Menu & Advance Pre-Order
+              </h2>
+              <p className="text-xs text-[#6B625D] mt-1">
+                Select courses in advance to guarantee kitchen prep upon your arrival, or skip and order at the table.
+              </p>
+            </div>
+
+            {cartItemsList.length > 0 && (
+              <div className="flex items-center gap-2 text-xs font-semibold px-3.5 py-1.5 rounded-full bg-[#FAF9F6] border border-[#795548]/30 text-[#4E342E]">
+                <ShoppingBag className="w-4 h-4 text-[#795548]" />
+                {cartItemsList.length} items in pre-order (${subtotal.toFixed(2)})
+              </div>
+            )}
+          </div>
+
+          {/* Category Pills */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-[#E8E1DA]">
+            <button
+              onClick={() => setActiveCategory('all')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition cursor-pointer ${
+                activeCategory === 'all'
+                  ? 'bg-[#4E342E] text-white font-semibold'
+                  : 'bg-[#FAF9F6] text-[#6B625D] hover:text-[#1C1C1C]'
+              }`}
+            >
+              All Categories ({menuItems.length})
+            </button>
+            {categories.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition cursor-pointer ${
+                  activeCategory === cat.id
+                    ? 'bg-[#4E342E] text-white font-semibold'
+                    : 'bg-[#FAF9F6] text-[#6B625D] hover:text-[#1C1C1C]'
+                }`}
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
+
+          {/* Items List */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {menuItems
+              .filter(m => activeCategory === 'all' || m.categoryId === activeCategory)
+              .map(item => {
+                const qty = cart[item.id] || 0;
+                return (
+                  <div
+                    key={item.id}
+                    className={`p-4 rounded-2xl border transition-all flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center ${
+                      qty > 0 
+                        ? 'bg-[#FAF9F6] border-[#795548]/40 shadow-xs' 
+                        : 'bg-white border-[#E8E1DA]/80 hover:border-[#E8E1DA]'
+                    } ${!item.isAvailable ? 'opacity-60 bg-gray-50' : ''}`}
+                  >
+                    {/* Image & Text */}
+                    <div className="flex gap-4 items-start flex-1">
+                      {item.imageUrl && (
+                        <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-100 shrink-0">
+                          <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-serif font-bold text-base text-[#1C1C1C]">
+                            {item.name}
+                          </h4>
+                          {item.isVegetarian && (
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-semibold flex items-center gap-1 border border-emerald-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 inline-block"></span>
+                              Vegetarian
+                            </span>
+                          )}
+                          {item.isNonVegetarian && (
+                            <span className="px-2 py-0.5 rounded-md bg-red-50 text-red-700 text-[10px] font-semibold flex items-center gap-1 border border-red-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-600 inline-block"></span>
+                              Non-Veg
+                            </span>
+                          )}
+                          {item.isGlutenFree && (
+                            <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 text-[10px] font-semibold">
+                              Gluten-Free
+                            </span>
+                          )}
+                          {!item.isAvailable && (
+                            <span className="px-2 py-0.5 rounded-md bg-red-100 text-red-700 text-[10px] font-bold">
+                              Sold Out
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-[#6B625D] mt-1 leading-relaxed">
+                          {item.description}
+                        </p>
+                        {item.preparationNotes && (
+                          <p className="text-[11px] text-[#795548] mt-1 italic">
+                            Note: {item.preparationNotes}
+                          </p>
+                        )}
+                        <div className="mt-2 font-semibold text-sm text-[#1C1C1C]">
+                          ${item.price.toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quantity Controls */}
+                    <div className="shrink-0 self-end sm:self-center">
+                      {!item.isAvailable ? (
+                        <span className="text-xs text-red-600 font-medium">Currently Unavailable</span>
+                      ) : qty === 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(item.id, 1)}
+                          className="px-3.5 py-1.5 rounded-xl border border-[#795548] text-[#795548] hover:bg-[#795548] hover:text-white text-xs font-semibold transition cursor-pointer flex items-center gap-1"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Add
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-2 bg-white border border-[#E8E1DA] rounded-xl p-1 shadow-xs">
+                          <button
+                            type="button"
+                            onClick={() => updateQuantity(item.id, -1)}
+                            className="w-7 h-7 rounded-lg hover:bg-[#FAF9F6] text-[#4E342E] flex items-center justify-center transition cursor-pointer"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+                          <span className="w-6 text-center font-bold text-sm text-[#1C1C1C]">
+                            {qty}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateQuantity(item.id, 1)}
+                            className="w-7 h-7 rounded-lg hover:bg-[#FAF9F6] text-[#4E342E] flex items-center justify-center transition cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+
+      </div>
+    )}
 
       {/* POPUP: EXISTING BOOKING CONFIRMATION MODAL */}
       {showDuplicateModal && activeBooking && (

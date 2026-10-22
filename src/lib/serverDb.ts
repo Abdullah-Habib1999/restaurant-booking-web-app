@@ -11,7 +11,8 @@ import {
   RestaurantClosure,
   TimeSlotAvailability,
   UserProfile,
-  ReservationStatus 
+  ReservationStatus,
+  TableSeatStatus 
 } from '@/types';
 import { 
   INITIAL_RESTAURANTS, 
@@ -21,6 +22,9 @@ import {
   INITIAL_MENU_ITEMS, 
   INITIAL_RESERVATIONS 
 } from '@/data/seed';
+
+// Memory map for cinema-style temporary seat holds with automatic expiration
+const seatHolds = new Map<string, { token: string; expiresAt: number }>();
 
 // Ensure data folder exists
 const dbDir = path.join(process.cwd(), 'data');
@@ -92,7 +96,11 @@ sqlite.exec(`
     tableNumber TEXT NOT NULL,
     capacity INTEGER NOT NULL,
     locationArea TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1
+    isActive INTEGER NOT NULL DEFAULT 1,
+    shape TEXT DEFAULT 'rectangle',
+    posX REAL DEFAULT 50,
+    posY REAL DEFAULT 50,
+    rotation REAL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS menu_categories (
@@ -138,6 +146,7 @@ sqlite.exec(`
     status TEXT NOT NULL,
     assignedTableId TEXT,
     assignedTableName TEXT,
+    assignedSeatNumbers TEXT, -- JSON array of numbers e.g. [1, 2]
     specialRequests TEXT,
     orderSubtotal REAL NOT NULL DEFAULT 0,
     orderTax REAL NOT NULL DEFAULT 0,
@@ -150,12 +159,26 @@ sqlite.exec(`
   );
 `);
 
-// Self-migration for existing databases: ensure isNonVegetarian column exists
+// Safe migrations for table layout and seat numbers
 try {
   sqlite.exec('ALTER TABLE menu_items ADD COLUMN isNonVegetarian INTEGER NOT NULL DEFAULT 0');
-} catch (e) {
-  // column already exists
-}
+} catch (e) {}
+
+try {
+  sqlite.exec("ALTER TABLE tables ADD COLUMN shape TEXT DEFAULT 'rectangle'");
+} catch (e) {}
+try {
+  sqlite.exec("ALTER TABLE tables ADD COLUMN posX REAL DEFAULT 50");
+} catch (e) {}
+try {
+  sqlite.exec("ALTER TABLE tables ADD COLUMN posY REAL DEFAULT 50");
+} catch (e) {}
+try {
+  sqlite.exec("ALTER TABLE tables ADD COLUMN rotation REAL DEFAULT 0");
+} catch (e) {}
+try {
+  sqlite.exec("ALTER TABLE reservations ADD COLUMN assignedSeatNumbers TEXT");
+} catch (e) {}
 
 // Seed Initial Data if database is freshly created
 const userCount = (sqlite.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number }).count;
@@ -269,7 +292,8 @@ function mapRestaurant(row: any): Restaurant {
 function mapReservation(row: any): Reservation {
   return {
     ...row,
-    items: JSON.parse(row.items || '[]')
+    items: JSON.parse(row.items || '[]'),
+    assignedSeatNumbers: row.assignedSeatNumbers ? JSON.parse(row.assignedSeatNumbers) : undefined
   };
 }
 
@@ -333,17 +357,35 @@ export const serverDb = {
   // TABLES
   getTables: (restaurantId: string): DiningTable[] => {
     const rows = sqlite.prepare('SELECT * FROM tables WHERE restaurantId = ? ORDER BY tableNumber ASC').all(restaurantId);
-    return rows.map((r: any) => ({ ...r, isActive: Boolean(r.isActive) }));
+    return rows.map((r: any) => ({
+      ...r,
+      isActive: Boolean(r.isActive),
+      shape: r.shape || 'rectangle',
+      posX: r.posX !== null && r.posX !== undefined ? Number(r.posX) : 50,
+      posY: r.posY !== null && r.posY !== undefined ? Number(r.posY) : 50,
+      rotation: r.rotation !== null && r.rotation !== undefined ? Number(r.rotation) : 0,
+    }));
   },
 
   saveTable: (t: DiningTable): DiningTable => {
     const existing = sqlite.prepare('SELECT id FROM tables WHERE id = ?').get(t.id);
+    const shape = t.shape || 'rectangle';
+    const posX = t.posX !== undefined ? t.posX : 50;
+    const posY = t.posY !== undefined ? t.posY : 50;
+    const rotation = t.rotation !== undefined ? t.rotation : 0;
+
     if (existing) {
-      sqlite.prepare('UPDATE tables SET tableNumber = ?, capacity = ?, locationArea = ?, isActive = ? WHERE id = ?')
-        .run(t.tableNumber, t.capacity, t.locationArea, t.isActive ? 1 : 0, t.id);
+      sqlite.prepare(`
+        UPDATE tables SET 
+          tableNumber = ?, capacity = ?, locationArea = ?, isActive = ?,
+          shape = ?, posX = ?, posY = ?, rotation = ?
+        WHERE id = ?
+      `).run(t.tableNumber, t.capacity, t.locationArea, t.isActive ? 1 : 0, shape, posX, posY, rotation, t.id);
     } else {
-      sqlite.prepare('INSERT INTO tables (id, restaurantId, tableNumber, capacity, locationArea, isActive) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(t.id, t.restaurantId, t.tableNumber, t.capacity, t.locationArea, t.isActive ? 1 : 0);
+      sqlite.prepare(`
+        INSERT INTO tables (id, restaurantId, tableNumber, capacity, locationArea, isActive, shape, posX, posY, rotation) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(t.id, t.restaurantId, t.tableNumber, t.capacity, t.locationArea, t.isActive ? 1 : 0, shape, posX, posY, rotation);
     }
     return t;
   },
@@ -552,6 +594,155 @@ export const serverDb = {
     return results;
   },
 
+  // Real-time Cinema-Style Table & Seat Availability Engine
+  getTableSeatsAvailability: (
+    restaurantId: string, 
+    date: string, 
+    time: string, 
+    partySize: number = 2
+  ): TableSeatStatus[] => {
+    const rest = serverDb.getRestaurantById(restaurantId);
+    if (!rest) return [];
+
+    const tables = serverDb.getTables(restaurantId);
+    const slotDuration = rest.slotDurationMinutes || 90;
+    const reqStart = timeToMinutes(time);
+    const reqEnd = reqStart + slotDuration;
+
+    // Active reservations for this restaurant on this date
+    const dateReservations = serverDb.getReservations({ restaurantId }).filter(
+      r => r.reservationDate === date && r.status !== 'cancelled' && r.status !== 'no_show'
+    );
+
+    // Filter to overlapping reservations
+    const overlapping = dateReservations.filter(res => {
+      const resStart = timeToMinutes(res.startTime);
+      const resEnd = timeToMinutes(res.endTime);
+      return reqStart < resEnd && reqEnd > resStart;
+    });
+
+    const bookedTableMap = new Map<string, { bookingRef: string; seats?: number[] }>();
+    for (const res of overlapping) {
+      if (res.assignedTableId) {
+        bookedTableMap.set(res.assignedTableId, {
+          bookingRef: res.bookingReference,
+          seats: res.assignedSeatNumbers
+        });
+      }
+    }
+
+    const now = Date.now();
+    // Prune expired seat holds
+    for (const [key, hold] of Array.from(seatHolds.entries())) {
+      if (hold.expiresAt <= now) {
+        seatHolds.delete(key);
+      }
+    }
+
+    return tables.map(tab => {
+      const bookingInfo = bookedTableMap.get(tab.id);
+      const isBooked = Boolean(bookingInfo);
+
+      // Check if table or seats are currently held
+      const holdKeyPrefix = `${restaurantId}_${date}_${time}_${tab.id}`;
+      const activeHold = seatHolds.get(holdKeyPrefix);
+      const isHeld = Boolean(activeHold && activeHold.expiresAt > now);
+
+      let status: TableSeatStatus['status'] = 'available';
+      if (!tab.isActive) {
+        status = 'unavailable';
+      } else if (isBooked) {
+        status = 'booked';
+      } else if (isHeld) {
+        status = 'held';
+      }
+
+      // Generate individual seats (like cinema seats 1..capacity)
+      const bookedSeatsSet = new Set(bookingInfo?.seats || []);
+      const seats = Array.from({ length: tab.capacity }).map((_, idx) => {
+        const seatNumber = idx + 1;
+        const seatId = `${tab.id}-s${seatNumber}`;
+        const seatHold = seatHolds.get(`${holdKeyPrefix}_s${seatNumber}`);
+
+        let seatStatus: TableSeatStatus['status'] = status;
+        if (status === 'available') {
+          if (bookedSeatsSet.has(seatNumber)) {
+            seatStatus = 'booked';
+          } else if (seatHold && seatHold.expiresAt > now) {
+            seatStatus = 'held';
+          }
+        }
+
+        return {
+          seatNumber,
+          seatId,
+          status: seatStatus
+        };
+      });
+
+      return {
+        tableId: tab.id,
+        tableNumber: tab.tableNumber,
+        capacity: tab.capacity,
+        shape: tab.shape || 'rectangle',
+        locationArea: tab.locationArea,
+        isActive: tab.isActive,
+        posX: tab.posX !== undefined ? tab.posX : 50,
+        posY: tab.posY !== undefined ? tab.posY : 50,
+        status,
+        heldExpiresAt: activeHold?.expiresAt,
+        bookedByReference: bookingInfo?.bookingRef,
+        seats
+      };
+    });
+  },
+
+  // Temporary Seat Hold mechanism (e.g. 5 minutes cinema-style hold)
+  holdSeats: (data: {
+    restaurantId: string;
+    date: string;
+    time: string;
+    tableId: string;
+    seatNumbers?: number[];
+    holdToken: string;
+    durationSeconds?: number;
+  }): { success: boolean; expiresAt?: number; error?: string } => {
+    const { restaurantId, date, time, tableId, seatNumbers, holdToken, durationSeconds = 300 } = data;
+    const availability = serverDb.getTableSeatsAvailability(restaurantId, date, time);
+    const targetTable = availability.find(t => t.tableId === tableId);
+
+    if (!targetTable || !targetTable.isActive) {
+      return { success: false, error: 'Table is not available for seating.' };
+    }
+
+    if (targetTable.status === 'booked') {
+      return { success: false, error: `Table ${targetTable.tableNumber} is already booked for this time.` };
+    }
+
+    const expiresAt = Date.now() + (durationSeconds * 1000);
+    const holdKeyPrefix = `${restaurantId}_${date}_${time}_${tableId}`;
+    seatHolds.set(holdKeyPrefix, { token: holdToken, expiresAt });
+
+    if (seatNumbers && seatNumbers.length > 0) {
+      for (const sNum of seatNumbers) {
+        seatHolds.set(`${holdKeyPrefix}_s${sNum}`, { token: holdToken, expiresAt });
+      }
+    }
+
+    return { success: true, expiresAt };
+  },
+
+  releaseHold: (restaurantId: string, date: string, time: string, tableId: string, holdToken?: string) => {
+    const holdKeyPrefix = `${restaurantId}_${date}_${time}_${tableId}`;
+    const existing = seatHolds.get(holdKeyPrefix);
+    if (!holdToken || (existing && existing.token === holdToken)) {
+      seatHolds.delete(holdKeyPrefix);
+      for (let s = 1; s <= 20; s++) {
+        seatHolds.delete(`${holdKeyPrefix}_s${s}`);
+      }
+    }
+  },
+
   createReservation: (data: {
     restaurantId: string;
     customerId: string;
@@ -561,6 +752,9 @@ export const serverDb = {
     partySize: number;
     reservationDate: string;
     startTime: string;
+    selectedTableId?: string;
+    selectedSeats?: number[];
+    holdToken?: string;
     specialRequests?: string;
     items?: { menuItemId: string; quantity: number }[];
   }): { success: boolean; reservation?: Reservation; error?: string } => {
@@ -584,6 +778,42 @@ export const serverDb = {
     const startMins = timeToMinutes(data.startTime);
     const endMins = startMins + slotDuration;
     const endTime = minutesToTime(endMins);
+
+    // Validate table selection & double booking prevention
+    let assignedTableId = data.selectedTableId || targetSlot.suggestedTableId;
+    let assignedTableName: string | undefined;
+    let assignedSeatNumbers: number[] | undefined = data.selectedSeats;
+
+    if (assignedTableId) {
+      const tables = serverDb.getTables(data.restaurantId);
+      const tab = tables.find(t => t.id === assignedTableId);
+      if (!tab || !tab.isActive) {
+        return { success: false, error: 'The selected table is currently unavailable or inactive.' };
+      }
+
+      // Check if this table has an overlapping reservation
+      const overlappingRes = serverDb.getReservations({ restaurantId: data.restaurantId }).find(res => {
+        if (res.reservationDate !== data.reservationDate || res.assignedTableId !== assignedTableId) return false;
+        if (res.status === 'cancelled' || res.status === 'no_show') return false;
+        const resStart = timeToMinutes(res.startTime);
+        const resEnd = timeToMinutes(res.endTime);
+        return startMins < resEnd && endMins > resStart;
+      });
+
+      if (overlappingRes) {
+        return { 
+          success: false, 
+          error: `Table ${tab.tableNumber} was just reserved by another guest for this time window. Please select another table.` 
+        };
+      }
+
+      assignedTableName = `${tab.tableNumber} (Cap: ${tab.capacity})`;
+
+      // If customer did not specify seats, default to [1..partySize]
+      if (!assignedSeatNumbers || assignedSeatNumbers.length === 0) {
+        assignedSeatNumbers = Array.from({ length: Math.min(data.partySize, tab.capacity) }, (_, i) => i + 1);
+      }
+    }
 
     // Recalculate menu items server-side
     const menuItems = serverDb.getMenuItems(data.restaurantId);
@@ -615,17 +845,6 @@ export const serverDb = {
     const tax = Number((subtotal * 0.08875).toFixed(2));
     const estimatedTotal = Number((subtotal + tax).toFixed(2));
 
-    let assignedTableId = targetSlot.suggestedTableId;
-    let assignedTableName: string | undefined;
-
-    if (assignedTableId) {
-      const tables = serverDb.getTables(data.restaurantId);
-      const tab = tables.find(t => t.id === assignedTableId);
-      if (tab) {
-        assignedTableName = `${tab.tableNumber} (Cap: ${tab.capacity})`;
-      }
-    }
-
     const prefix = restaurant.slug.substring(0, 2).toUpperCase();
     const rand = Math.floor(100000 + Math.random() * 900000);
     const bookingReference = `${prefix}-${rand}`;
@@ -649,6 +868,7 @@ export const serverDb = {
       status: restaurant.requiresManualApproval ? 'pending' : 'confirmed',
       assignedTableId,
       assignedTableName,
+      assignedSeatNumbers,
       specialRequests: data.specialRequests,
       orderSubtotal: subtotal,
       orderTax: tax,
@@ -662,9 +882,9 @@ export const serverDb = {
       INSERT INTO reservations (
         id, bookingReference, restaurantId, restaurantName, restaurantSlug, customerId,
         customerName, customerEmail, customerPhone, partySize, reservationDate, startTime,
-        endTime, status, assignedTableId, assignedTableName, specialRequests, orderSubtotal,
+        endTime, status, assignedTableId, assignedTableName, assignedSeatNumbers, specialRequests, orderSubtotal,
         orderTax, estimatedTotal, items, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       newReservation.id, newReservation.bookingReference, newReservation.restaurantId,
       newReservation.restaurantName || null, newReservation.restaurantSlug || null,
@@ -672,10 +892,16 @@ export const serverDb = {
       newReservation.customerPhone, newReservation.partySize, newReservation.reservationDate,
       newReservation.startTime, newReservation.endTime, newReservation.status,
       newReservation.assignedTableId || null, newReservation.assignedTableName || null,
+      assignedSeatNumbers ? JSON.stringify(assignedSeatNumbers) : null,
       newReservation.specialRequests || null, newReservation.orderSubtotal, newReservation.orderTax,
       newReservation.estimatedTotal, JSON.stringify(newReservation.items),
       newReservation.createdAt, newReservation.updatedAt
     );
+
+    // Release any temporary hold now that booking is confirmed
+    if (assignedTableId) {
+      serverDb.releaseHold(data.restaurantId, data.reservationDate, data.startTime, assignedTableId, data.holdToken);
+    }
 
     return { success: true, reservation: newReservation };
   },

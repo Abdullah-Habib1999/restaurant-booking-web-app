@@ -8,7 +8,8 @@ import {
   RestaurantClosure,
   TimeSlotAvailability,
   UserProfile,
-  ReservationStatus
+  ReservationStatus,
+  TableSeatStatus
 } from '@/types';
 import { 
   INITIAL_RESTAURANTS, 
@@ -158,6 +159,76 @@ export const db = {
       body: JSON.stringify({ action: 'deleteTable', tableId })
     });
     memTables = memTables.filter(t => t.id !== tableId);
+  },
+
+  // --- CINEMA-STYLE SEAT MAP & AVAILABILITY ---
+  getTableSeatsAvailability: async (restaurantId: string, date: string, time?: string, partySize: number = 2): Promise<TableSeatStatus[]> => {
+    const timeParam = time ? `&time=${encodeURIComponent(time)}` : '';
+    const res = await apiFetch<{ tables: TableSeatStatus[] }>(
+      `/api/seats?restaurantId=${encodeURIComponent(restaurantId)}&date=${encodeURIComponent(date)}${timeParam}&partySize=${partySize}`
+    );
+    if (res?.tables) return res.tables;
+
+    // Fallback using local memory tables
+    const tables = memTables.filter(t => t.restaurantId === restaurantId);
+    return tables.map(tab => ({
+      tableId: tab.id,
+      tableNumber: tab.tableNumber,
+      capacity: tab.capacity,
+      shape: tab.shape || 'rectangle',
+      locationArea: tab.locationArea,
+      isActive: tab.isActive,
+      posX: tab.posX !== undefined ? tab.posX : 50,
+      posY: tab.posY !== undefined ? tab.posY : 50,
+      status: tab.isActive ? 'available' : 'unavailable',
+      seats: Array.from({ length: tab.capacity }).map((_, i) => ({
+        seatNumber: i + 1,
+        seatId: `${tab.id}-s${i + 1}`,
+        status: tab.isActive ? 'available' : 'unavailable'
+      }))
+    }));
+  },
+
+  holdSeats: async (data: {
+    restaurantId: string;
+    tableId: string;
+    date?: string;
+    time?: string;
+    reservationDate?: string;
+    startTime?: string;
+    seatNumbers?: number[];
+    holdToken?: string;
+    customerId?: string;
+    durationSeconds?: number;
+  }): Promise<{ success: boolean; expiresAt?: number; holdToken?: string; error?: string }> => {
+    const token = data.holdToken || `hold-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const date = data.date || data.reservationDate || '';
+    const time = data.time || data.startTime || '';
+
+    const res = await apiFetch<{ success: boolean; expiresAt?: number; holdToken?: string; error?: string }>('/api/seats', {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'hold',
+        restaurantId: data.restaurantId,
+        tableId: data.tableId,
+        date,
+        time,
+        seatNumbers: data.seatNumbers,
+        holdToken: token,
+        durationSeconds: data.durationSeconds
+      })
+    });
+    return res || { success: true, expiresAt: Date.now() + 300000, holdToken: token };
+  },
+
+  releaseHold: async (tokenOrData: string | { restaurantId?: string; date?: string; time?: string; tableId?: string; holdToken?: string }): Promise<void> => {
+    const payload = typeof tokenOrData === 'string'
+      ? { action: 'release', holdToken: tokenOrData }
+      : { action: 'release', ...tokenOrData };
+    await apiFetch('/api/seats', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
   },
 
   // --- MENU CATEGORIES & ITEMS ---
@@ -323,6 +394,9 @@ export const db = {
     partySize: number;
     reservationDate: string;
     startTime: string;
+    selectedTableId?: string;
+    selectedSeats?: number[];
+    holdToken?: string;
     specialRequests?: string;
     items?: { menuItemId: string; quantity: number }[];
   }): Promise<{ success: boolean; reservation?: Reservation; error?: string }> => {

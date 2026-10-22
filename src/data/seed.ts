@@ -97,28 +97,28 @@ export const INITIAL_RESTAURANTS: Restaurant[] = [
 ];
 
 export const INITIAL_TABLES: DiningTable[] = [
-  // L'Osteria Terracotta (48 seats)
-  { id: 'tab-101', restaurantId: 'rest-1', tableNumber: 'T-01', capacity: 2, locationArea: 'Window Alcove', isActive: true, shape: 'round', posX: 18, posY: 20, rotation: 0 },
-  { id: 'tab-102', restaurantId: 'rest-1', tableNumber: 'T-02', capacity: 2, locationArea: 'Window Alcove', isActive: true, shape: 'round', posX: 18, posY: 45, rotation: 0 },
-  { id: 'tab-103', restaurantId: 'rest-1', tableNumber: 'T-03', capacity: 4, locationArea: 'Main Dining Room', isActive: true, shape: 'square', posX: 40, posY: 22, rotation: 0 },
-  { id: 'tab-104', restaurantId: 'rest-1', tableNumber: 'T-04', capacity: 4, locationArea: 'Main Dining Room', isActive: true, shape: 'square', posX: 60, posY: 22, rotation: 0 },
-  { id: 'tab-105', restaurantId: 'rest-1', tableNumber: 'T-05', capacity: 4, locationArea: 'Main Dining Room', isActive: true, shape: 'square', posX: 40, posY: 50, rotation: 0 },
-  { id: 'tab-106', restaurantId: 'rest-1', tableNumber: 'T-06', capacity: 6, locationArea: 'Center Banquette', isActive: true, shape: 'rectangle', posX: 62, posY: 50, rotation: 0 },
-  { id: 'tab-107', restaurantId: 'rest-1', tableNumber: 'T-07', capacity: 6, locationArea: 'Center Banquette', isActive: true, shape: 'rectangle', posX: 84, posY: 35, rotation: 90 },
-  { id: 'tab-108', restaurantId: 'rest-1', tableNumber: 'T-08', capacity: 8, locationArea: 'Wine Cellar Room', isActive: true, shape: 'rectangle', posX: 84, posY: 70, rotation: 90 },
-  { id: 'tab-109', restaurantId: 'rest-1', tableNumber: 'T-09', capacity: 12, locationArea: 'Private Hearth', isActive: true, shape: 'rectangle', posX: 35, posY: 78, rotation: 0 },
+  // L'Osteria Terracotta (48 seats) - Optimized coordinate spread for zero collision
+  { id: 'tab-101', restaurantId: 'rest-1', tableNumber: 'T-01', capacity: 2, locationArea: 'Window Alcove', isActive: true, shape: 'round', posX: 16, posY: 20, rotation: 0 },
+  { id: 'tab-102', restaurantId: 'rest-1', tableNumber: 'T-02', capacity: 2, locationArea: 'Window Alcove', isActive: true, shape: 'round', posX: 16, posY: 48, rotation: 0 },
+  { id: 'tab-103', restaurantId: 'rest-1', tableNumber: 'T-03', capacity: 4, locationArea: 'Main Dining Room', isActive: true, shape: 'square', posX: 40, posY: 20, rotation: 0 },
+  { id: 'tab-104', restaurantId: 'rest-1', tableNumber: 'T-04', capacity: 4, locationArea: 'Main Dining Room', isActive: true, shape: 'square', posX: 66, posY: 20, rotation: 0 },
+  { id: 'tab-105', restaurantId: 'rest-1', tableNumber: 'T-05', capacity: 4, locationArea: 'Main Dining Room', isActive: true, shape: 'square', posX: 38, posY: 50, rotation: 0 },
+  { id: 'tab-106', restaurantId: 'rest-1', tableNumber: 'T-06', capacity: 6, locationArea: 'Center Banquette', isActive: true, shape: 'rectangle', posX: 65, posY: 50, rotation: 0 },
+  { id: 'tab-107', restaurantId: 'rest-1', tableNumber: 'T-07', capacity: 6, locationArea: 'Center Banquette', isActive: true, shape: 'rectangle', posX: 88, posY: 28, rotation: 90 },
+  { id: 'tab-108', restaurantId: 'rest-1', tableNumber: 'T-08', capacity: 8, locationArea: 'Wine Cellar Room', isActive: true, shape: 'rectangle', posX: 88, posY: 68, rotation: 90 },
+  { id: 'tab-109', restaurantId: 'rest-1', tableNumber: 'T-09', capacity: 12, locationArea: 'Private Hearth', isActive: true, shape: 'rectangle', posX: 42, posY: 80, rotation: 0 },
 
-  // Saffron & Silk (64 seats)
-  { id: 'tab-201', restaurantId: 'rest-2', tableNumber: 'S-01', capacity: 2, locationArea: 'Courtyard Terrace', isActive: true, shape: 'round', posX: 18, posY: 22, rotation: 0 },
-  { id: 'tab-202', restaurantId: 'rest-2', tableNumber: 'S-02', capacity: 2, locationArea: 'Courtyard Terrace', isActive: true, shape: 'round', posX: 18, posY: 52, rotation: 0 },
-  { id: 'tab-203', restaurantId: 'rest-2', tableNumber: 'S-03', capacity: 4, locationArea: 'Royal Dining Hall', isActive: true, shape: 'square', posX: 40, posY: 24, rotation: 0 },
-  { id: 'tab-204', restaurantId: 'rest-2', tableNumber: 'S-04', capacity: 4, locationArea: 'Royal Dining Hall', isActive: true, shape: 'square', posX: 60, posY: 24, rotation: 0 },
-  { id: 'tab-205', restaurantId: 'rest-2', tableNumber: 'S-05', capacity: 4, locationArea: 'Royal Dining Hall', isActive: true, shape: 'square', posX: 40, posY: 52, rotation: 0 },
-  { id: 'tab-206', restaurantId: 'rest-2', tableNumber: 'S-06', capacity: 6, locationArea: 'Jharokha Alcove', isActive: true, shape: 'rectangle', posX: 62, posY: 52, rotation: 0 },
-  { id: 'tab-207', restaurantId: 'rest-2', tableNumber: 'S-07', capacity: 6, locationArea: 'Jharokha Alcove', isActive: true, shape: 'rectangle', posX: 84, posY: 30, rotation: 90 },
-  { id: 'tab-208', restaurantId: 'rest-2', tableNumber: 'S-08', capacity: 8, locationArea: 'Maharaja Room', isActive: true, shape: 'rectangle', posX: 84, posY: 68, rotation: 90 },
-  { id: 'tab-209', restaurantId: 'rest-2', tableNumber: 'S-09', capacity: 8, locationArea: 'Maharaja Room', isActive: true, shape: 'rectangle', posX: 35, posY: 80, rotation: 0 },
-  { id: 'tab-210', restaurantId: 'rest-2', tableNumber: 'S-10', capacity: 14, locationArea: 'Grand Feast Suite', isActive: true, shape: 'rectangle', posX: 65, posY: 80, rotation: 0 },
+  // Saffron & Silk (64 seats) - Optimized coordinate spread for zero collision
+  { id: 'tab-201', restaurantId: 'rest-2', tableNumber: 'S-01', capacity: 2, locationArea: 'Courtyard Terrace', isActive: true, shape: 'round', posX: 16, posY: 22, rotation: 0 },
+  { id: 'tab-202', restaurantId: 'rest-2', tableNumber: 'S-02', capacity: 2, locationArea: 'Courtyard Terrace', isActive: true, shape: 'round', posX: 16, posY: 52, rotation: 0 },
+  { id: 'tab-203', restaurantId: 'rest-2', tableNumber: 'S-03', capacity: 4, locationArea: 'Royal Dining Hall', isActive: true, shape: 'square', posX: 40, posY: 22, rotation: 0 },
+  { id: 'tab-204', restaurantId: 'rest-2', tableNumber: 'S-04', capacity: 4, locationArea: 'Royal Dining Hall', isActive: true, shape: 'square', posX: 66, posY: 22, rotation: 0 },
+  { id: 'tab-205', restaurantId: 'rest-2', tableNumber: 'S-05', capacity: 4, locationArea: 'Royal Dining Hall', isActive: true, shape: 'square', posX: 38, posY: 52, rotation: 0 },
+  { id: 'tab-206', restaurantId: 'rest-2', tableNumber: 'S-06', capacity: 6, locationArea: 'Jharokha Alcove', isActive: true, shape: 'rectangle', posX: 65, posY: 52, rotation: 0 },
+  { id: 'tab-207', restaurantId: 'rest-2', tableNumber: 'S-07', capacity: 6, locationArea: 'Jharokha Alcove', isActive: true, shape: 'rectangle', posX: 88, posY: 28, rotation: 90 },
+  { id: 'tab-208', restaurantId: 'rest-2', tableNumber: 'S-08', capacity: 8, locationArea: 'Maharaja Room', isActive: true, shape: 'rectangle', posX: 88, posY: 68, rotation: 90 },
+  { id: 'tab-209', restaurantId: 'rest-2', tableNumber: 'S-09', capacity: 8, locationArea: 'Maharaja Room', isActive: true, shape: 'rectangle', posX: 32, posY: 80, rotation: 0 },
+  { id: 'tab-210', restaurantId: 'rest-2', tableNumber: 'S-10', capacity: 14, locationArea: 'Grand Feast Suite', isActive: true, shape: 'rectangle', posX: 68, posY: 80, rotation: 0 },
 ];
 
 export const INITIAL_HOURS: RestaurantHours[] = [

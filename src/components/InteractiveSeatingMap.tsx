@@ -245,7 +245,7 @@ export default function InteractiveSeatingMap({
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className="relative w-full h-[380px] xs:h-[420px] sm:h-[500px] rounded-3xl bg-white border border-[#E6DDD3] overflow-hidden shadow-inner flex items-center justify-center cursor-grab active:cursor-grabbing touch-none"
+        className="relative w-full h-[400px] xs:h-[440px] sm:h-[520px] rounded-3xl bg-white border border-[#E6DDD3] overflow-hidden shadow-inner flex items-center justify-center cursor-grab active:cursor-grabbing touch-none"
       >
         
         {/* Subtle grid background to simulate hardwood or architectural tiles */}
@@ -270,203 +270,220 @@ export default function InteractiveSeatingMap({
         )}
 
         {/* Mobile touch pan indicator badge */}
-        <div className="absolute top-2 right-2 z-20 pointer-events-none opacity-60 sm:hidden flex items-center gap-1 bg-white/80 backdrop-blur-xs px-2 py-0.5 rounded-full text-[9px] text-[#795548] font-medium border border-[#E6DDD3]">
-          <Move className="w-2.5 h-2.5" />
-          <span>Drag to pan • Pinch to zoom</span>
+        <div className="absolute top-2 right-2 z-20 pointer-events-none opacity-80 sm:hidden flex items-center gap-1 bg-white/90 backdrop-blur-xs px-2.5 py-1 rounded-full text-[10px] text-[#795548] font-medium border border-[#E6DDD3] shadow-2xs">
+          <Move className="w-3 h-3" />
+          <span>Pan & Zoom enabled</span>
         </div>
 
-        {/* 3D / ISOMETRIC CONTAINER */}
-        <div
-          className="relative w-full h-full transition-transform duration-150 ease-out origin-center"
-          style={{
-            transform: viewMode === 'isometric'
-              ? `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) rotateX(24deg) rotateZ(-6deg)`
-              : `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-            transformStyle: 'preserve-3d'
-          }}
-        >
-          {/* ARCHITECTURAL RESTAURANT MARKERS */}
-          {/* Kitchen / Chef Pass Area */}
-          <div className="absolute top-2 left-6 right-6 h-7 sm:h-8 rounded-xl bg-[#3B2924]/5 border border-[#3B2924]/20 flex items-center justify-between px-3 sm:px-4 text-[9px] sm:text-[10px] uppercase font-bold tracking-widest text-[#795548] pointer-events-none">
-            <span className="flex items-center gap-1 sm:gap-1.5 truncate">
-              <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-600 shrink-0"></span>
-              <span className="truncate">Open Kitchen & Hearth</span>
-            </span>
-            <span className="text-[8px] sm:text-[9px] text-[#A89F91] shrink-0">Pass</span>
-          </div>
+        {/* FIXED VIRTUAL STAGE CANVAS
+            We fix the virtual floorplan canvas to 620px x 480px.
+            On smaller screens (e.g. mobile 320px-440px), autoFitScale perfectly shrinks the layout
+            so that percentage distances are preserved in true proportion without any tables overlapping. */}
+        {(() => {
+          const virtualW = 620;
+          const virtualH = 480;
+          // Available stage width and height inside the container padding
+          const stageW = containerWidth > 0 ? containerWidth - 16 : 360;
+          const stageH = isMobile ? (containerWidth < 380 ? 380 : 420) : 500;
+          const fitScale = Math.min(1, stageW / virtualW, stageH / virtualH);
+          const effectiveScale = fitScale * zoom;
 
-          {/* Entrance Door at Bottom */}
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-3 sm:px-4 py-0.5 sm:py-1 rounded-full bg-[#E9DFD2] border border-[#C5BAAF] text-[9px] sm:text-[10px] font-bold text-[#3B2924] shadow-2xs flex items-center gap-1 sm:gap-1.5 pointer-events-none whitespace-nowrap">
-            <Compass className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-[#795548]" />
-            Guest Entrance
-          </div>
-
-          {/* Bar / Wine Counter on Right */}
-          <div className="absolute top-16 right-2 sm:top-20 sm:right-3 w-8 sm:w-10 h-36 sm:h-44 rounded-2xl bg-[#E6DDD3]/60 border border-[#C5BAAF] flex flex-col items-center justify-center text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-[#795548] pointer-events-none origin-center">
-            <span className="[writing-mode:vertical-rl] tracking-wider text-[8px] sm:text-[9px]">Wine Cellar</span>
-          </div>
-
-          {/* RENDER EACH TABLE & ITS SURROUNDING SEATS */}
-          {tables.map(table => {
-            const isSelected = selectedTableId === table.tableId;
-            const isBooked = table.status === 'booked';
-            const isHeld = table.status === 'held';
-            const isUnavailable = table.status === 'unavailable' || !table.isActive;
-            const isSelectable = !isBooked && !isHeld && !isUnavailable;
-
-            // Geometry shapes
-            const isRound = table.shape === 'round';
-            const isRectangle = table.shape === 'rectangle' || table.capacity >= 6;
-            
-            // Width / Height based on shape & capacity (scaled cleanly for touch)
-            let tableWidth = 64;
-            let tableHeight = 64;
-            if (isRound) {
-              tableWidth = 66;
-              tableHeight = 66;
-            } else if (isRectangle) {
-              tableWidth = table.capacity >= 10 ? 120 : 96;
-              tableHeight = 56;
-            } else {
-              tableWidth = 64;
-              tableHeight = 64;
-            }
-
-            // Determine table background styling based on cinema state
-            let tableBg = 'bg-[#FAF6F0] text-[#201B18] border-[#C5BAAF] hover:border-[#795548]';
-            if (isSelected) {
-              tableBg = 'bg-[#3B2924] text-[#F8F5F0] border-[#201B18] shadow-lg ring-4 ring-[#795548]/30 scale-105';
-            } else if (isBooked) {
-              tableBg = 'bg-[#4A433F] text-gray-300 border-[#332D29] opacity-90 cursor-not-allowed';
-            } else if (isHeld) {
-              tableBg = 'bg-amber-100 text-amber-900 border-amber-400 cursor-not-allowed';
-            } else if (isUnavailable) {
-              tableBg = 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed';
-            }
-
-            return (
-              <div
-                key={table.tableId}
-                className="absolute transition-all duration-200 group"
-                style={{
-                  left: `${table.posX}%`,
-                  top: `${table.posY}%`,
-                  transform: `translate(-50%, -50%) rotate(${table.shape === 'rectangle' && table.capacity >= 6 ? (table.posX > 75 ? 90 : 0) : 0}deg)`,
-                  zIndex: isSelected ? 20 : 10
-                }}
-                onMouseEnter={() => setHoveredTable(table)}
-                onMouseLeave={() => setHoveredTable(null)}
-              >
-                {/* 3D TABLE TOP SURFACE */}
-                <div
-                  onClick={() => {
-                    if (isSelectable) {
-                      onSelectTable(table.tableId);
-                    }
-                  }}
-                  className={`interactive-table relative flex flex-col items-center justify-center p-2 border-2 transition-all cursor-pointer select-none ${
-                    isRound ? 'rounded-full' : 'rounded-2xl'
-                  } ${tableBg}`}
-                  style={{
-                    width: `${tableWidth}px`,
-                    height: `${tableHeight}px`,
-                    boxShadow: viewMode === 'isometric' 
-                      ? (isSelected ? '0 12px 24px -4px rgba(59, 41, 36, 0.4)' : '0 6px 12px -2px rgba(0,0,0,0.12)')
-                      : undefined
-                  }}
-                >
-                  <span className="font-serif font-bold text-xs tracking-tight">
-                    {table.tableNumber}
-                  </span>
-                  <span className={`text-[9px] font-semibold flex items-center gap-0.5 ${
-                    isSelected ? 'text-[#E9DFD2]' : 'text-[#776B63]'
-                  }`}>
-                    <Users className="w-2.5 h-2.5" />
-                    {table.capacity}p
-                  </span>
-
-                  {/* Status Indicator Icon */}
-                  {isSelected && (
-                    <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-[#795548] text-white flex items-center justify-center shadow-xs">
-                      <Check className="w-3 h-3 stroke-[3]" />
-                    </div>
-                  )}
-                  {isBooked && (
-                    <div className="absolute -top-1 -right-1 px-1 rounded-sm bg-gray-900 text-gray-200 text-[8px] font-mono">
-                      BOOKED
-                    </div>
-                  )}
-                </div>
-
-                {/* INDIVIDUAL CINEMA SEATS AROUND THIS TABLE */}
-                <div className="pointer-events-auto">
-                  {table.seats.map((seat, seatIdx) => {
-                    // Position seats evenly around table perimeter with adequate touch separation
-                    const totalSeats = table.seats.length;
-                    const angle = (seatIdx / totalSeats) * 2 * Math.PI;
-                    const radiusX = (tableWidth / 2) + 14;
-                    const radiusY = (tableHeight / 2) + 14;
-                    const seatX = Math.cos(angle) * radiusX;
-                    const seatY = Math.sin(angle) * radiusY;
-
-                    const isSeatSelected = isSelected && (selectedSeats.length === 0 || selectedSeats.includes(seat.seatNumber));
-                    const isSeatBooked = seat.status === 'booked' || isBooked;
-                    const isSeatHeld = seat.status === 'held' || isHeld;
-                    const isSeatUnavailable = seat.status === 'unavailable' || isUnavailable;
-
-                    let seatBg = 'bg-[#FAF6F0] border-[#BCAAA4] text-[#3B2924] hover:bg-[#EFEBE4] hover:border-[#795548]';
-                    if (isSeatSelected) {
-                      seatBg = 'bg-[#3B2924] border-[#201B18] text-white ring-2 ring-[#795548] shadow-xs';
-                    } else if (isSeatBooked) {
-                      seatBg = 'bg-[#4A433F] border-[#332D29] text-gray-400 cursor-not-allowed';
-                    } else if (isSeatHeld) {
-                      seatBg = 'bg-amber-400 border-amber-600 text-amber-950 cursor-not-allowed';
-                    } else if (isSeatUnavailable) {
-                      seatBg = 'bg-gray-300 border-gray-400 text-gray-500 cursor-not-allowed';
-                    }
-
-                    return (
-                      <div
-                        key={seat.seatId}
-                        className="absolute flex items-center justify-center"
-                        style={{
-                          left: `calc(50% + ${seatX}px)`,
-                          top: `calc(50% + ${seatY}px)`,
-                          transform: 'translate(-50%, -50%)',
-                          zIndex: 15
-                        }}
-                      >
-                        {/* 40px touch hit-target wrapping the seat icon */}
-                        <button
-                          type="button"
-                          disabled={isSeatBooked || isSeatHeld || isSeatUnavailable}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSelectSeat(table.tableId, seat.seatNumber);
-                          }}
-                          onMouseEnter={() => setHoveredSeat({
-                            tableNumber: table.tableNumber,
-                            seatNumber: seat.seatNumber,
-                            status: isSeatSelected ? 'Selected' : isSeatBooked ? 'Booked' : isSeatHeld ? 'Held' : 'Available'
-                          })}
-                          onMouseLeave={() => setHoveredSeat(null)}
-                          className="w-8 h-8 -m-1.5 flex items-center justify-center cursor-pointer touch-manipulation focus:outline-none"
-                          title={`Table ${table.tableNumber} • Seat ${seat.seatNumber} (${seat.status})`}
-                          aria-label={`Select seat ${seat.seatNumber} at table ${table.tableNumber}`}
-                        >
-                          <span className={`w-5 h-5 sm:w-5.5 sm:h-5.5 rounded-full border flex items-center justify-center text-[8px] sm:text-[9px] font-bold transition-transform hover:scale-125 active:scale-110 shadow-2xs ${seatBg}`}>
-                            {seat.seatNumber}
-                          </span>
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-
+          return (
+            <div
+              className="relative transition-transform duration-150 ease-out origin-center shrink-0"
+              style={{
+                width: `${virtualW}px`,
+                height: `${virtualH}px`,
+                transform: viewMode === 'isometric'
+                  ? `translate(${pan.x}px, ${pan.y}px) scale(${effectiveScale}) rotateX(24deg) rotateZ(-6deg)`
+                  : `translate(${pan.x}px, ${pan.y}px) scale(${effectiveScale})`,
+                transformStyle: 'preserve-3d'
+              }}
+            >
+              {/* ARCHITECTURAL RESTAURANT MARKERS */}
+              {/* Kitchen / Chef Pass Area */}
+              <div className="absolute top-2 left-6 right-6 h-7 sm:h-8 rounded-xl bg-[#3B2924]/5 border border-[#3B2924]/20 flex items-center justify-between px-3 sm:px-4 text-[9px] sm:text-[10px] uppercase font-bold tracking-widest text-[#795548] pointer-events-none">
+                <span className="flex items-center gap-1.5 truncate">
+                  <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-600 shrink-0"></span>
+                  <span className="truncate">Open Kitchen & Hearth</span>
+                </span>
+                <span className="text-[8px] sm:text-[9px] text-[#A89F91] shrink-0">Pass</span>
               </div>
-            );
-          })}
-        </div>
+
+              {/* Entrance Door at Bottom */}
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-3 sm:px-4 py-1 rounded-full bg-[#E9DFD2] border border-[#C5BAAF] text-[9px] sm:text-[10px] font-bold text-[#3B2924] shadow-2xs flex items-center gap-1.5 pointer-events-none whitespace-nowrap">
+                <Compass className="w-3 h-3 text-[#795548]" />
+                Guest Entrance
+              </div>
+
+              {/* Bar / Wine Counter on Right */}
+              <div className="absolute top-14 right-2 w-9 h-40 rounded-2xl bg-[#E6DDD3]/60 border border-[#C5BAAF] flex flex-col items-center justify-center text-[8px] font-bold uppercase tracking-widest text-[#795548] pointer-events-none origin-center">
+                <span className="[writing-mode:vertical-rl] tracking-wider text-[8px]">Wine Cellar</span>
+              </div>
+
+              {/* RENDER EACH TABLE & ITS SURROUNDING SEATS */}
+              {tables.map(table => {
+                const isSelected = selectedTableId === table.tableId;
+                const isBooked = table.status === 'booked';
+                const isHeld = table.status === 'held';
+                const isUnavailable = table.status === 'unavailable' || !table.isActive;
+                const isSelectable = !isBooked && !isHeld && !isUnavailable;
+
+                // Geometry shapes
+                const isRound = table.shape === 'round';
+                const isRectangle = table.shape === 'rectangle' || table.capacity >= 6;
+                
+                // Width / Height based on shape & capacity calibrated for virtual 620px canvas
+                let tableWidth = 56;
+                let tableHeight = 56;
+                if (isRound) {
+                  tableWidth = 58;
+                  tableHeight = 58;
+                } else if (isRectangle) {
+                  tableWidth = table.capacity >= 10 ? 116 : 82;
+                  tableHeight = 50;
+                } else {
+                  tableWidth = 54;
+                  tableHeight = 54;
+                }
+
+                // Determine table background styling based on cinema state
+                let tableBg = 'bg-[#FAF6F0] text-[#201B18] border-[#C5BAAF] hover:border-[#795548]';
+                if (isSelected) {
+                  tableBg = 'bg-[#3B2924] text-[#F8F5F0] border-[#201B18] shadow-lg ring-4 ring-[#795548]/30 scale-105';
+                } else if (isBooked) {
+                  tableBg = 'bg-[#4A433F] text-gray-300 border-[#332D29] opacity-90 cursor-not-allowed';
+                } else if (isHeld) {
+                  tableBg = 'bg-amber-100 text-amber-900 border-amber-400 cursor-not-allowed';
+                } else if (isUnavailable) {
+                  tableBg = 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed';
+                }
+
+                return (
+                  <div
+                    key={table.tableId}
+                    className="absolute transition-all duration-200 group"
+                    style={{
+                      left: `${table.posX}%`,
+                      top: `${table.posY}%`,
+                      transform: `translate(-50%, -50%) rotate(${table.shape === 'rectangle' && table.capacity >= 6 ? (table.posX > 75 ? 90 : 0) : 0}deg)`,
+                      zIndex: isSelected ? 20 : 10
+                    }}
+                    onMouseEnter={() => setHoveredTable(table)}
+                    onMouseLeave={() => setHoveredTable(null)}
+                  >
+                    {/* TABLE TOP SURFACE */}
+                    <div
+                      onClick={() => {
+                        if (isSelectable) {
+                          onSelectTable(table.tableId);
+                        }
+                      }}
+                      className={`interactive-table relative flex flex-col items-center justify-center p-1.5 border-2 transition-all cursor-pointer select-none ${
+                        isRound ? 'rounded-full' : 'rounded-2xl'
+                      } ${tableBg}`}
+                      style={{
+                        width: `${tableWidth}px`,
+                        height: `${tableHeight}px`,
+                        boxShadow: viewMode === 'isometric' 
+                          ? (isSelected ? '0 12px 24px -4px rgba(59, 41, 36, 0.4)' : '0 6px 12px -2px rgba(0,0,0,0.12)')
+                          : '0 2px 4px rgba(0,0,0,0.06)'
+                      }}
+                    >
+                      <span className="font-serif font-bold text-xs tracking-tight">
+                        {table.tableNumber}
+                      </span>
+                      <span className={`text-[8.5px] font-semibold flex items-center gap-0.5 ${
+                        isSelected ? 'text-[#E9DFD2]' : 'text-[#776B63]'
+                      }`}>
+                        <Users className="w-2.5 h-2.5" />
+                        {table.capacity}p
+                      </span>
+
+                      {/* Status Indicator Icon */}
+                      {isSelected && (
+                        <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-[#795548] text-white flex items-center justify-center shadow-xs">
+                          <Check className="w-3 h-3 stroke-[3]" />
+                        </div>
+                      )}
+                      {isBooked && (
+                        <div className="absolute -top-1 -right-1 px-1 rounded-sm bg-gray-900 text-gray-200 text-[8px] font-mono">
+                          BOOKED
+                        </div>
+                      )}
+                    </div>
+
+                    {/* INDIVIDUAL CINEMA SEATS AROUND THIS TABLE */}
+                    <div className="pointer-events-auto">
+                      {table.seats.map((seat, seatIdx) => {
+                        // Position seats evenly around table perimeter with calibrated separation
+                        const totalSeats = table.seats.length;
+                        const angle = (seatIdx / totalSeats) * 2 * Math.PI;
+                        const radiusX = (tableWidth / 2) + 11;
+                        const radiusY = (tableHeight / 2) + 11;
+                        const seatX = Math.cos(angle) * radiusX;
+                        const seatY = Math.sin(angle) * radiusY;
+
+                        const isSeatSelected = isSelected && (selectedSeats.length === 0 || selectedSeats.includes(seat.seatNumber));
+                        const isSeatBooked = seat.status === 'booked' || isBooked;
+                        const isSeatHeld = seat.status === 'held' || isHeld;
+                        const isSeatUnavailable = seat.status === 'unavailable' || isUnavailable;
+
+                        let seatBg = 'bg-[#FAF6F0] border-[#BCAAA4] text-[#3B2924] hover:bg-[#EFEBE4] hover:border-[#795548]';
+                        if (isSeatSelected) {
+                          seatBg = 'bg-[#3B2924] border-[#201B18] text-white ring-2 ring-[#795548] shadow-xs';
+                        } else if (isSeatBooked) {
+                          seatBg = 'bg-[#4A433F] border-[#332D29] text-gray-400 cursor-not-allowed';
+                        } else if (isSeatHeld) {
+                          seatBg = 'bg-amber-400 border-amber-600 text-amber-950 cursor-not-allowed';
+                        } else if (isSeatUnavailable) {
+                          seatBg = 'bg-gray-300 border-gray-400 text-gray-500 cursor-not-allowed';
+                        }
+
+                        return (
+                          <div
+                            key={seat.seatId}
+                            className="absolute flex items-center justify-center"
+                            style={{
+                              left: `calc(50% + ${seatX}px)`,
+                              top: `calc(50% + ${seatY}px)`,
+                              transform: 'translate(-50%, -50%)',
+                              zIndex: 15
+                            }}
+                          >
+                            {/* Generous touch hit-target wrapping the seat icon */}
+                            <button
+                              type="button"
+                              disabled={isSeatBooked || isSeatHeld || isSeatUnavailable}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectSeat(table.tableId, seat.seatNumber);
+                              }}
+                              onMouseEnter={() => setHoveredSeat({
+                                tableNumber: table.tableNumber,
+                                seatNumber: seat.seatNumber,
+                                status: isSeatSelected ? 'Selected' : isSeatBooked ? 'Booked' : isSeatHeld ? 'Held' : 'Available'
+                              })}
+                              onMouseLeave={() => setHoveredSeat(null)}
+                              className="w-7 h-7 -m-1 flex items-center justify-center cursor-pointer touch-manipulation focus:outline-none"
+                              title={`Table ${table.tableNumber} • Seat ${seat.seatNumber} (${seat.status})`}
+                              aria-label={`Select seat ${seat.seatNumber} at table ${table.tableNumber}`}
+                            >
+                              <span className={`w-4.5 h-4.5 sm:w-5 sm:h-5 rounded-full border flex items-center justify-center text-[7.5px] sm:text-[8.5px] font-bold transition-transform hover:scale-125 active:scale-110 shadow-2xs ${seatBg}`}>
+                                {seat.seatNumber}
+                              </span>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {/* HOVER TOOLTIP / INSPECTOR POPUP */}
         {(hoveredSeat || hoveredTable) && (

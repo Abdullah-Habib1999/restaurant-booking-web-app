@@ -126,24 +126,24 @@ export default function TablesManagementPage() {
       
       {/* Title */}
       <div>
-        <h1 className="font-serif text-2xl sm:text-3xl font-bold text-[#1C1C1C]">
+        <h1 className="font-serif text-2xl sm:text-3xl font-bold text-[#F5F0E9]">
           Seating Capacity & Table Allocation Engine
         </h1>
-        <p className="text-sm text-[#6B625D] mt-1">
+        <p className="text-sm text-[#B7AAA0] mt-1">
           Configure real-time capacity validation, table assignments, and anti-overbooking rules.
         </p>
       </div>
 
       {saveMessage && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-semibold flex items-center gap-2">
-          <Check className="w-4 h-4 text-emerald-600" />
+        <div className="p-3.5 rounded-xl bg-[#132A1C] border border-[#22543D] text-xs text-[#86EFAC] font-semibold flex items-center gap-2">
+          <Check className="w-4 h-4 text-[#86EFAC]" />
           <span>{saveMessage}</span>
         </div>
       )}
 
       {/* CORE ENGINE CONFIGURATION */}
-      <div className="bg-white rounded-3xl border border-[#E8E1DA] p-6 sm:p-8 shadow-xs space-y-6">
-        <h3 className="font-serif text-lg font-bold text-[#1C1C1C]">
+      <div className="bg-[#181513] rounded-3xl border border-[#332A25] p-6 sm:p-8 shadow-sm space-y-6">
+        <h3 className="font-serif text-lg font-bold text-[#F5F0E9]">
           Capacity Strategy & Mode
         </h3>
 
@@ -154,27 +154,27 @@ export default function TablesManagementPage() {
             onClick={() => setMode('individual_tables')}
             className={`p-5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
               mode === 'individual_tables'
-                ? 'bg-[#FAF9F6] border-[#795548] ring-1 ring-[#795548]'
-                : 'bg-white border-[#E8E1DA] hover:border-[#795548]/40'
+                ? 'bg-[#1C1917] border-[#8B5E45] ring-1 ring-[#8B5E45]'
+                : 'bg-[#151311] border-[#332A25] hover:border-[#8B5E45]/40'
             }`}
           >
             <div>
               <div className="flex items-center justify-between">
-                <span className="font-serif font-bold text-base text-[#1C1C1C]">
+                <span className="font-serif font-bold text-base text-[#F5F0E9]">
                   Individual Table Management
                 </span>
                 <input
                   type="radio"
                   checked={mode === 'individual_tables'}
                   onChange={() => setMode('individual_tables')}
-                  className="accent-[#795548]"
+                  className="accent-[#8B5E45]"
                 />
               </div>
-              <p className="text-xs text-[#6B625D] mt-2 leading-relaxed">
+              <p className="text-xs text-[#B7AAA0] mt-2 leading-relaxed">
                 Reservations are assigned to concrete tables (e.g., T-01, Patio-4). Both the individual table capacity and total restaurant ceiling are checked simultaneously.
               </p>
             </div>
-            <div className="mt-4 text-[11px] font-semibold text-[#795548]">
+            <div className="mt-4 text-[11px] font-semibold text-[#C6A47E]">
               Recommended for full-service dining
             </div>
           </div>
@@ -184,27 +184,27 @@ export default function TablesManagementPage() {
             onClick={() => setMode('total_capacity')}
             className={`p-5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
               mode === 'total_capacity'
-                ? 'bg-[#FAF9F6] border-[#795548] ring-1 ring-[#795548]'
-                : 'bg-white border-[#E8E1DA] hover:border-[#795548]/40'
+                ? 'bg-[#1C1917] border-[#8B5E45] ring-1 ring-[#8B5E45]'
+                : 'bg-[#151311] border-[#332A25] hover:border-[#8B5E45]/40'
             }`}
           >
             <div>
               <div className="flex items-center justify-between">
-                <span className="font-serif font-bold text-base text-[#1C1C1C]">
+                <span className="font-serif font-bold text-base text-[#F5F0E9]">
                   Total Seat Pool Mode
                 </span>
                 <input
                   type="radio"
                   checked={mode === 'total_capacity'}
                   onChange={() => setMode('total_capacity')}
-                  className="accent-[#795548]"
+                  className="accent-[#8B5E45]"
                 />
               </div>
-              <p className="text-xs text-[#6B625D] mt-2 leading-relaxed">
+              <p className="text-xs text-[#B7AAA0] mt-2 leading-relaxed">
                 The booking engine sums all overlapping party sizes against the overall seat limit without tying guests to specific table numbers until arrival.
               </p>
             </div>
-            <div className="mt-4 text-[11px] font-semibold text-[#795548]">
+            <div className="mt-4 text-[11px] font-semibold text-[#C6A47E]">
               Ideal for open seating or lounge layouts
             </div>
           </div>
@@ -212,9 +212,9 @@ export default function TablesManagementPage() {
         </div>
 
         {/* Total Overall Seating Limit Input */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-[#E8E1DA]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-[#332A25]">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-[#6B625D] mb-1">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-[#8D8178] mb-1">
               Overall Restaurant Seating Limit
             </label>
             <input
@@ -223,9 +223,9 @@ export default function TablesManagementPage() {
               max={1000}
               value={totalCapacity}
               onChange={(e) => setTotalCapacity(Number(e.target.value))}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-sm text-[#1C1C1C] font-semibold"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-[#332A25] bg-[#151311] text-sm text-[#F5F0E9] font-semibold focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
             />
-            <p className="text-[11px] text-[#6B625D] mt-1">
+            <p className="text-[11px] text-[#8D8178] mt-1">
               Hard limit: any booking request exceeding remaining capacity for that time window is rejected.
             </p>
           </div>
@@ -233,7 +233,7 @@ export default function TablesManagementPage() {
           <div className="flex items-end">
             <button
               onClick={handleUpdateModeAndCapacity}
-              className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#4E342E] hover:bg-[#795548] text-white text-xs font-semibold transition cursor-pointer shadow-xs"
+              className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#8B5E45] hover:bg-[#9E6C51] text-[#F5F0E9] text-xs font-semibold transition cursor-pointer shadow-sm"
             >
               Save Capacity Engine Rules
             </button>
@@ -243,27 +243,27 @@ export default function TablesManagementPage() {
       </div>
 
       {/* SEATING LAYOUT & INVENTORY TABS */}
-      <div className="bg-white rounded-3xl border border-[#E8E1DA] p-6 sm:p-8 shadow-xs space-y-6">
+      <div className="bg-[#181513] rounded-3xl border border-[#332A25] p-6 sm:p-8 shadow-sm space-y-6">
         
         {/* Tab navigation */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E8E1DA] pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#332A25] pb-4">
           <div>
-            <h3 className="font-serif text-lg font-bold text-[#1C1C1C]">
+            <h3 className="font-serif text-lg font-bold text-[#F5F0E9]">
               Restaurant Seating Layout & Floor Plan
             </h3>
-            <p className="text-xs text-[#6B625D] mt-0.5">
+            <p className="text-xs text-[#B7AAA0] mt-0.5">
               {tables.length} tables registered ({totalSeatsInTables} active customer seats)
             </p>
           </div>
 
-          <div className="flex items-center gap-2 p-1 bg-[#FAF9F6] rounded-xl border border-[#E8E1DA]">
+          <div className="flex items-center gap-2 p-1 bg-[#151311] rounded-xl border border-[#332A25]">
             <button
               type="button"
               onClick={() => setActiveTab('visual_editor')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
                 activeTab === 'visual_editor'
-                  ? 'bg-[#4E342E] text-white shadow-xs'
-                  : 'text-[#6B625D] hover:text-[#1C1C1C]'
+                  ? 'bg-[#8B5E45] text-[#F5F0E9] shadow-sm'
+                  : 'text-[#8D8178] hover:text-[#F5F0E9]'
               }`}
             >
               Visual Floor Plan Editor
@@ -273,8 +273,8 @@ export default function TablesManagementPage() {
               onClick={() => setActiveTab('inventory')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
                 activeTab === 'inventory'
-                  ? 'bg-[#4E342E] text-white shadow-xs'
-                  : 'text-[#6B625D] hover:text-[#1C1C1C]'
+                  ? 'bg-[#8B5E45] text-[#F5F0E9] shadow-sm'
+                  : 'text-[#8D8178] hover:text-[#F5F0E9]'
               }`}
             >
               Table Inventory Grid
@@ -288,16 +288,16 @@ export default function TablesManagementPage() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               
               {/* Floor Plan Canvas Preview (7 cols) */}
-              <div className="lg:col-span-7 bg-[#2A2321] rounded-2xl p-4 sm:p-6 border border-[#3E3431] relative overflow-hidden min-h-[380px] flex flex-col justify-between shadow-inner">
+              <div className="lg:col-span-7 bg-[#111111] rounded-2xl p-4 sm:p-6 border border-[#332A25] relative overflow-hidden min-h-[380px] flex flex-col justify-between shadow-inner">
                 {/* Architectural Wall boundary */}
-                <div className="absolute inset-3 border-2 border-dashed border-[#574945]/40 rounded-xl pointer-events-none" />
+                <div className="absolute inset-3 border-2 border-dashed border-[#332A25] rounded-xl pointer-events-none" />
 
                 {/* Top Architectural Markers */}
-                <div className="flex justify-between items-center z-10 text-[10px] text-[#A69990]">
-                  <span className="px-2 py-0.5 rounded bg-[#3B302D] border border-[#574945]/60 uppercase font-mono">
+                <div className="flex justify-between items-center z-10 text-[10px] text-[#C6A47E]">
+                  <span className="px-2 py-0.5 rounded bg-[#181513] border border-[#332A25] uppercase font-mono">
                     Hearth Kitchen & Bar Pass
                   </span>
-                  <span className="px-2 py-0.5 rounded bg-[#3B302D] border border-[#574945]/60 uppercase font-mono">
+                  <span className="px-2 py-0.5 rounded bg-[#181513] border border-[#332A25] uppercase font-mono">
                     Sommelier Wine Cellar
                   </span>
                 </div>
@@ -321,7 +321,7 @@ export default function TablesManagementPage() {
                         }}
                         className={`absolute cursor-pointer transition-all duration-150 flex flex-col items-center justify-center p-2 text-center select-none ${
                           isSelected
-                            ? 'ring-2 ring-amber-400 scale-110 z-20'
+                            ? 'ring-2 ring-[#C6A47E] scale-110 z-20'
                             : 'hover:scale-105 z-10'
                         } ${
                           shape === 'round'
@@ -331,15 +331,15 @@ export default function TablesManagementPage() {
                             : 'w-24 h-16 rounded-xl'
                         } ${
                           table.isActive
-                            ? 'bg-[#EFE9DF] text-[#2C1D18] shadow-md border-2 border-[#D9CEBF]'
-                            : 'bg-[#4A403C] text-gray-400 border border-gray-600 line-through'
+                            ? 'bg-[#EFEBE4] text-[#111111] shadow-md border-2 border-[#C6A47E]'
+                            : 'bg-[#282828] text-[#8D8178] border border-[#332A25] line-through'
                         }`}
                         title={`Click to edit ${table.tableNumber}`}
                       >
                         <span className="text-[11px] font-bold font-serif leading-none">
                           {table.tableNumber}
                         </span>
-                        <span className="text-[9px] text-[#795548] font-semibold mt-0.5">
+                        <span className="text-[9px] text-[#8B5E45] font-semibold mt-0.5">
                           {table.capacity}p
                         </span>
                       </div>
@@ -348,33 +348,33 @@ export default function TablesManagementPage() {
                 </div>
 
                 {/* Bottom Architectural Markers */}
-                <div className="flex justify-between items-center z-10 text-[10px] text-[#A69990]">
-                  <span className="px-2 py-0.5 rounded bg-[#3B302D] border border-[#574945]/60 uppercase font-mono">
+                <div className="flex justify-between items-center z-10 text-[10px] text-[#C6A47E]">
+                  <span className="px-2 py-0.5 rounded bg-[#181513] border border-[#332A25] uppercase font-mono">
                     Entrance & Host Stand
                   </span>
-                  <span className="text-[#8C7E76] italic text-[11px]">
+                  <span className="text-[#8D8178] italic text-[11px]">
                     Click table on floor to reposition
                   </span>
                 </div>
               </div>
 
               {/* Table Position & Shape Controls (5 cols) */}
-              <div className="lg:col-span-5 bg-[#FAF9F6] rounded-2xl border border-[#E8E1DA] p-5 space-y-4">
+              <div className="lg:col-span-5 bg-[#151311] rounded-2xl border border-[#332A25] p-5 space-y-4">
                 {selectedEditTable ? (
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between border-b border-[#E8E1DA] pb-2">
+                    <div className="flex items-center justify-between border-b border-[#332A25] pb-2">
                       <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#795548]">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#C6A47E]">
                           Selected Table
                         </span>
-                        <h4 className="font-serif text-lg font-bold text-[#1C1C1C]">
+                        <h4 className="font-serif text-lg font-bold text-[#F5F0E9]">
                           {selectedEditTable.tableNumber} ({selectedEditTable.locationArea})
                         </h4>
                       </div>
                       <button
                         type="button"
                         onClick={() => setSelectedEditTable(null)}
-                        className="text-xs text-[#6B625D] hover:text-[#1C1C1C]"
+                        className="text-xs text-[#8D8178] hover:text-[#F5F0E9]"
                       >
                         Clear Selection
                       </button>
@@ -382,7 +382,7 @@ export default function TablesManagementPage() {
 
                     {/* Shape Selector */}
                     <div>
-                      <label className="block text-xs font-semibold uppercase text-[#6B625D] mb-1.5">
+                      <label className="block text-xs font-semibold uppercase text-[#8D8178] mb-1.5">
                         Table Shape
                       </label>
                       <div className="grid grid-cols-3 gap-2">
@@ -393,8 +393,8 @@ export default function TablesManagementPage() {
                             onClick={() => handleUpdateTablePosition(selectedEditTable.id, selectedEditTable.posX ?? 50, selectedEditTable.posY ?? 50, sh)}
                             className={`py-1.5 px-2 rounded-xl text-xs font-semibold capitalize border transition cursor-pointer ${
                               (selectedEditTable.shape || 'round') === sh
-                                ? 'bg-[#4E342E] text-white border-[#4E342E]'
-                                : 'bg-white text-[#6B625D] border-[#E8E1DA] hover:bg-gray-50'
+                                ? 'bg-[#8B5E45] text-[#F5F0E9] border-[#8B5E45]'
+                                : 'bg-[#181513] text-[#8D8178] border-[#332A25] hover:text-[#F5F0E9]'
                             }`}
                           >
                             {sh}
@@ -406,9 +406,9 @@ export default function TablesManagementPage() {
                     {/* Position Sliders */}
                     <div className="space-y-3">
                       <div>
-                        <div className="flex justify-between text-xs text-[#6B625D] mb-1">
+                        <div className="flex justify-between text-xs text-[#B7AAA0] mb-1">
                           <span>Horizontal Position (X)</span>
-                          <span className="font-bold text-[#1C1C1C]">{selectedEditTable.posX ?? 50}%</span>
+                          <span className="font-bold text-[#C6A47E]">{selectedEditTable.posX ?? 50}%</span>
                         </div>
                         <input
                           type="range"
@@ -416,14 +416,14 @@ export default function TablesManagementPage() {
                           max="90"
                           value={selectedEditTable.posX ?? 50}
                           onChange={(e) => handleUpdateTablePosition(selectedEditTable.id, Number(e.target.value), selectedEditTable.posY ?? 50)}
-                          className="w-full accent-[#795548] cursor-pointer"
+                          className="w-full accent-[#8B5E45] cursor-pointer"
                         />
                       </div>
 
                       <div>
-                        <div className="flex justify-between text-xs text-[#6B625D] mb-1">
+                        <div className="flex justify-between text-xs text-[#B7AAA0] mb-1">
                           <span>Vertical Position (Y)</span>
-                          <span className="font-bold text-[#1C1C1C]">{selectedEditTable.posY ?? 50}%</span>
+                          <span className="font-bold text-[#C6A47E]">{selectedEditTable.posY ?? 50}%</span>
                         </div>
                         <input
                           type="range"
@@ -431,20 +431,20 @@ export default function TablesManagementPage() {
                           max="85"
                           value={selectedEditTable.posY ?? 50}
                           onChange={(e) => handleUpdateTablePosition(selectedEditTable.id, selectedEditTable.posX ?? 50, Number(e.target.value))}
-                          className="w-full accent-[#795548] cursor-pointer"
+                          className="w-full accent-[#8B5E45] cursor-pointer"
                         />
                       </div>
                     </div>
 
                     {/* Table Status Toggle */}
-                    <div className="pt-2 flex items-center justify-between border-t border-[#E8E1DA]">
+                    <div className="pt-2 flex items-center justify-between border-t border-[#332A25]">
                       <button
                         type="button"
                         onClick={() => handleToggleTableActive(selectedEditTable)}
                         className={`text-xs font-semibold px-3 py-1.5 rounded-xl border transition cursor-pointer ${
                           selectedEditTable.isActive
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                            : 'bg-gray-100 text-gray-600 border-gray-300'
+                            ? 'bg-[#132A1C] text-[#86EFAC] border-[#22543D]'
+                            : 'bg-[#181513] text-[#8D8178] border-[#332A25]'
                         }`}
                       >
                         {selectedEditTable.isActive ? 'Active for Customer Booking' : 'Marked Inactive (Maintenance)'}
@@ -456,7 +456,7 @@ export default function TablesManagementPage() {
                           handleDeleteTable(selectedEditTable.id);
                           setSelectedEditTable(null);
                         }}
-                        className="text-xs text-red-600 hover:text-red-800 font-semibold p-1"
+                        className="text-xs text-red-400 hover:text-red-300 font-semibold p-1"
                       >
                         Delete Table
                       </button>
@@ -464,12 +464,12 @@ export default function TablesManagementPage() {
 
                   </div>
                 ) : (
-                  <div className="py-12 text-center text-[#6B625D] space-y-2">
-                    <Layers className="w-8 h-8 text-[#795548] mx-auto opacity-70" />
-                    <p className="text-xs font-semibold text-[#1C1C1C]">
+                  <div className="py-12 text-center text-[#8D8178] space-y-2">
+                    <Layers className="w-8 h-8 text-[#8B5E45] mx-auto opacity-70" />
+                    <p className="text-xs font-semibold text-[#F5F0E9]">
                       Select a table on the floor plan
                     </p>
-                    <p className="text-[11px] text-[#6B625D] max-w-xs mx-auto">
+                    <p className="text-[11px] text-[#B7AAA0] max-w-xs mx-auto">
                       Click any table above to adjust its coordinates, shape (round/square/rectangle), or toggle availability.
                     </p>
                   </div>
@@ -481,64 +481,64 @@ export default function TablesManagementPage() {
         )}
 
         {/* Add Table Form */}
-        <form onSubmit={handleAddTable} className="grid grid-cols-1 sm:grid-cols-6 gap-3 p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E1DA]">
+        <form onSubmit={handleAddTable} className="grid grid-cols-1 sm:grid-cols-6 gap-3 p-4 rounded-2xl bg-[#151311] border border-[#332A25]">
           <div className="sm:col-span-2">
-            <label className="block text-[11px] font-semibold uppercase text-[#6B625D] mb-1">Table Label / Number</label>
+            <label className="block text-[11px] font-semibold uppercase text-[#8D8178] mb-1">Table Label / Number</label>
             <input
               type="text"
               placeholder="e.g. T-12, Booth 3"
               value={newTableNumber}
               onChange={(e) => setNewTableNumber(e.target.value)}
-              className="w-full px-3 py-1.5 rounded-lg border border-[#E8E1DA] bg-white text-xs text-[#1C1C1C]"
+              className="w-full px-3 py-1.5 rounded-lg border border-[#332A25] bg-[#181513] text-xs text-[#F5F0E9] focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
               required
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold uppercase text-[#6B625D] mb-1">Seats</label>
+            <label className="block text-[11px] font-semibold uppercase text-[#8D8178] mb-1">Seats</label>
             <input
               type="number"
               min={1}
               max={50}
               value={newTableCapacity}
               onChange={(e) => setNewTableCapacity(Number(e.target.value))}
-              className="w-full px-3 py-1.5 rounded-lg border border-[#E8E1DA] bg-white text-xs text-[#1C1C1C]"
+              className="w-full px-3 py-1.5 rounded-lg border border-[#332A25] bg-[#181513] text-xs text-[#F5F0E9] focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
               required
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold uppercase text-[#6B625D] mb-1">Shape</label>
+            <label className="block text-[11px] font-semibold uppercase text-[#8D8178] mb-1">Shape</label>
             <select
               value={newTableShape}
               onChange={(e) => setNewTableShape(e.target.value as TableShape)}
-              className="w-full px-3 py-1.5 rounded-lg border border-[#E8E1DA] bg-white text-xs text-[#1C1C1C]"
+              className="w-full px-3 py-1.5 rounded-lg border border-[#332A25] bg-[#181513] text-xs text-[#F5F0E9] focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
             >
-              <option value="round">Round</option>
-              <option value="square">Square</option>
-              <option value="rectangle">Rectangle</option>
+              <option value="round" className="bg-[#181513] text-[#F5F0E9]">Round</option>
+              <option value="square" className="bg-[#181513] text-[#F5F0E9]">Square</option>
+              <option value="rectangle" className="bg-[#181513] text-[#F5F0E9]">Rectangle</option>
             </select>
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold uppercase text-[#6B625D] mb-1">Area</label>
+            <label className="block text-[11px] font-semibold uppercase text-[#8D8178] mb-1">Area</label>
             <select
               value={newTableArea}
               onChange={(e) => setNewTableArea(e.target.value)}
-              className="w-full px-3 py-1.5 rounded-lg border border-[#E8E1DA] bg-white text-xs text-[#1C1C1C]"
+              className="w-full px-3 py-1.5 rounded-lg border border-[#332A25] bg-[#181513] text-xs text-[#F5F0E9] focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
             >
-              <option value="Main Dining Room">Main Dining</option>
-              <option value="Window Alcove">Window Alcove</option>
-              <option value="Courtyard Terrace">Courtyard</option>
-              <option value="Private Dining">Private Room</option>
-              <option value="Bar / High-Top">Bar High-Top</option>
+              <option value="Main Dining Room" className="bg-[#181513] text-[#F5F0E9]">Main Dining</option>
+              <option value="Window Alcove" className="bg-[#181513] text-[#F5F0E9]">Window Alcove</option>
+              <option value="Courtyard Terrace" className="bg-[#181513] text-[#F5F0E9]">Courtyard</option>
+              <option value="Private Dining" className="bg-[#181513] text-[#F5F0E9]">Private Room</option>
+              <option value="Bar / High-Top" className="bg-[#181513] text-[#F5F0E9]">Bar High-Top</option>
             </select>
           </div>
 
           <div className="flex items-end">
             <button
               type="submit"
-              className="w-full py-2 px-3 rounded-lg bg-[#4E342E] hover:bg-[#795548] text-white text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1.5"
+              className="w-full py-2 px-3 rounded-lg bg-[#8B5E45] hover:bg-[#9E6C51] text-[#F5F0E9] text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
             >
               <Plus className="w-3.5 h-3.5" />
               Add Table
@@ -554,30 +554,30 @@ export default function TablesManagementPage() {
                 key={table.id}
                 className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${
                   table.isActive 
-                    ? 'bg-white border-[#E8E1DA] shadow-xs' 
-                    : 'bg-gray-50 border-gray-200 opacity-60'
+                    ? 'bg-[#1C1917] border-[#332A25] shadow-sm' 
+                    : 'bg-[#151311] border-[#332A25] opacity-60'
                 }`}
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <span className="font-serif font-bold text-lg text-[#1C1C1C]">
+                    <span className="font-serif font-bold text-lg text-[#F5F0E9]">
                       {table.tableNumber}
                     </span>
-                    <p className="text-xs text-[#795548] font-medium">
+                    <p className="text-xs text-[#C6A47E] font-medium">
                       {table.locationArea} • <span className="capitalize">{table.shape || 'round'}</span>
                     </p>
                   </div>
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF9F6] border border-[#E8E1DA] text-xs font-bold text-[#4E342E]">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#151311] border border-[#332A25] text-xs font-bold text-[#C6A47E]">
                     <Users className="w-3.5 h-3.5" />
                     {table.capacity} Seats
                   </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-[#E8E1DA]/60 flex items-center justify-between text-xs">
+                <div className="mt-4 pt-3 border-t border-[#332A25] flex items-center justify-between text-xs">
                   <button
                     type="button"
                     onClick={() => handleToggleTableActive(table)}
-                    className={`font-semibold cursor-pointer ${table.isActive ? 'text-emerald-700' : 'text-gray-500'}`}
+                    className={`font-semibold cursor-pointer ${table.isActive ? 'text-[#86EFAC]' : 'text-[#8D8178]'}`}
                   >
                     {table.isActive ? '● Active' : '○ Inactive'}
                   </button>
@@ -585,7 +585,7 @@ export default function TablesManagementPage() {
                   <button
                     type="button"
                     onClick={() => handleDeleteTable(table.id)}
-                    className="text-red-600 hover:text-red-800 p-1 cursor-pointer"
+                    className="text-red-400 hover:text-red-300 p-1 cursor-pointer"
                     title="Delete Table"
                   >
                     <Trash2 className="w-3.5 h-3.5" />

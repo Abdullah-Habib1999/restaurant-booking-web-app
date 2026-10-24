@@ -175,10 +175,10 @@ export default function MenuManagementPage() {
       {/* Title */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="font-serif text-2xl sm:text-3xl font-bold text-[#1C1C1C]">
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold text-[#F5F0E9]">
             Menu & Culinary Offerings
           </h1>
-          <p className="text-sm text-[#6B625D] mt-1">
+          <p className="text-sm text-[#B7AAA0] mt-1">
             Manage your categories, set dish prices, and toggle immediate dish availability.
           </p>
         </div>
@@ -190,7 +190,7 @@ export default function MenuManagementPage() {
             }
             setIsAddingItem(!isAddingItem);
           }}
-          className="px-4 py-2.5 rounded-xl bg-[#4E342E] hover:bg-[#795548] text-white text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 self-start sm:self-auto shadow-xs"
+          className="px-4 py-2.5 rounded-xl bg-[#8B5E45] hover:bg-[#9E6C51] text-[#F5F0E9] text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 self-start sm:self-auto shadow-sm"
         >
           <Plus className="w-4 h-4" />
           {isAddingItem ? 'Cancel Item Form' : 'Add New Menu Item'}
@@ -200,86 +200,86 @@ export default function MenuManagementPage() {
       {feedback && (
         <div className={`p-3.5 rounded-xl border text-xs font-semibold flex items-center gap-2 ${
           feedback.startsWith('Error') 
-            ? 'bg-red-50 border-red-200 text-red-800' 
-            : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+            ? 'bg-[#2E1212] border-[#7F1D1D] text-[#FCA5A5]' 
+            : 'bg-[#132A1C] border-[#22543D] text-[#86EFAC]'
         }`}>
-          {feedback.startsWith('Error') ? <X className="w-4 h-4 text-red-600" /> : <Check className="w-4 h-4 text-emerald-600" />}
+          {feedback.startsWith('Error') ? <X className="w-4 h-4 text-red-400" /> : <Check className="w-4 h-4 text-[#86EFAC]" />}
           <span>{feedback}</span>
         </div>
       )}
 
       {/* ADD NEW ITEM FORM */}
       {isAddingItem && (
-        <form onSubmit={handleSaveNewItem} className="bg-white rounded-3xl border border-[#795548]/40 p-6 sm:p-8 shadow-md space-y-4">
-          <h3 className="font-serif text-lg font-bold text-[#1C1C1C]">
+        <form onSubmit={handleSaveNewItem} className="bg-[#181513] rounded-3xl border border-[#332A25] p-6 sm:p-8 shadow-xl space-y-4">
+          <h3 className="font-serif text-lg font-bold text-[#F5F0E9]">
             New Culinary Item Details
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
             <div>
-              <label className="block font-semibold uppercase text-[#6B625D] mb-1">Item Name</label>
+              <label className="block font-semibold uppercase text-[#8D8178] mb-1">Item Name</label>
               <input
                 type="text"
                 placeholder="e.g. Grilled Chicken Steak or Risotto"
                 value={itemName}
                 onChange={(e) => setItemName(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
+                className="w-full px-3 py-2 rounded-xl border border-[#332A25] bg-[#151311] text-[#F5F0E9] placeholder-[#8D8178] focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
                 required
               />
             </div>
 
             <div>
-              <label className="block font-semibold uppercase text-[#6B625D] mb-1">Category</label>
+              <label className="block font-semibold uppercase text-[#8D8178] mb-1">Category</label>
               <select
                 value={itemCategory}
                 onChange={(e) => setItemCategory(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
+                className="w-full px-3 py-2 rounded-xl border border-[#332A25] bg-[#151311] text-[#F5F0E9] focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
               >
                 {categories.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
+                  <option key={c.id} value={c.id} className="bg-[#151311] text-[#F5F0E9]">{c.name}</option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label className="block font-semibold uppercase text-[#6B625D] mb-1">Price ($ USD)</label>
+              <label className="block font-semibold uppercase text-[#8D8178] mb-1">Price ($ USD)</label>
               <input
                 type="number"
                 step="0.5"
                 min="0"
                 value={itemPrice}
                 onChange={(e) => setItemPrice(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
+                className="w-full px-3 py-2 rounded-xl border border-[#332A25] bg-[#151311] text-[#F5F0E9] focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
                 required
               />
             </div>
           </div>
 
           <div className="text-xs">
-            <label className="block font-semibold uppercase text-[#6B625D] mb-1">Description</label>
+            <label className="block font-semibold uppercase text-[#8D8178] mb-1">Description</label>
             <textarea
               rows={2}
               placeholder="Key ingredients, culinary preparation, and flavor profile..."
               value={itemDescription}
               onChange={(e) => setItemDescription(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
+              className="w-full px-3 py-2 rounded-xl border border-[#332A25] bg-[#151311] text-[#F5F0E9] placeholder-[#8D8178] focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
             <div>
-              <label className="block font-semibold uppercase text-[#6B625D] mb-1">Optional Photo URL</label>
+              <label className="block font-semibold uppercase text-[#8D8178] mb-1">Optional Photo URL</label>
               <input
                 type="url"
                 placeholder="https://..."
                 value={itemImageUrl}
                 onChange={(e) => setItemImageUrl(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
+                className="w-full px-3 py-2 rounded-xl border border-[#332A25] bg-[#151311] text-[#F5F0E9] placeholder-[#8D8178] focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
               />
             </div>
 
             <div className="flex items-center gap-6 pt-5 flex-wrap">
-              <label className="flex items-center gap-2 cursor-pointer font-medium text-[#1C1C1C]">
+              <label className="flex items-center gap-2 cursor-pointer font-medium text-[#F5F0E9]">
                 <input
                   type="checkbox"
                   checked={itemVeg}
@@ -290,12 +290,12 @@ export default function MenuManagementPage() {
                   className="accent-emerald-700 w-4 h-4"
                 />
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block"></span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
                   Vegetarian
                 </span>
               </label>
 
-              <label className="flex items-center gap-2 cursor-pointer font-medium text-[#1C1C1C]">
+              <label className="flex items-center gap-2 cursor-pointer font-medium text-[#F5F0E9]">
                 <input
                   type="checkbox"
                   checked={itemNonVeg}
@@ -306,17 +306,17 @@ export default function MenuManagementPage() {
                   className="accent-red-700 w-4 h-4"
                 />
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-600 inline-block"></span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block"></span>
                   Non-Vegetarian
                 </span>
               </label>
 
-              <label className="flex items-center gap-2 cursor-pointer font-medium text-[#1C1C1C]">
+              <label className="flex items-center gap-2 cursor-pointer font-medium text-[#F5F0E9]">
                 <input
                   type="checkbox"
                   checked={itemGlutenFree}
                   onChange={(e) => setItemGlutenFree(e.target.checked)}
-                  className="accent-[#795548] w-4 h-4"
+                  className="accent-[#8B5E45] w-4 h-4"
                 />
                 Gluten-Free
               </label>
@@ -327,13 +327,13 @@ export default function MenuManagementPage() {
             <button
               type="button"
               onClick={() => setIsAddingItem(false)}
-              className="px-4 py-2 rounded-xl bg-[#FAF9F6] border border-[#E8E1DA] text-xs font-semibold text-[#6B625D]"
+              className="px-4 py-2 rounded-xl bg-[#151311] border border-[#332A25] text-xs font-semibold text-[#8D8178] hover:text-[#F5F0E9]"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-[#4E342E] hover:bg-[#795548] text-white text-xs font-semibold shadow-xs"
+              className="px-5 py-2 rounded-xl bg-[#8B5E45] hover:bg-[#9E6C51] text-[#F5F0E9] text-xs font-semibold shadow-sm cursor-pointer"
             >
               Save Menu Item
             </button>
@@ -342,8 +342,8 @@ export default function MenuManagementPage() {
       )}
 
       {/* QUICK ADD CATEGORY BAR */}
-      <form onSubmit={handleAddCategory} className="bg-white rounded-2xl border border-[#E8E1DA] p-4 shadow-xs flex flex-col sm:flex-row items-center gap-3">
-        <span className="text-xs font-bold uppercase tracking-wider text-[#6B625D] whitespace-nowrap">
+      <form onSubmit={handleAddCategory} className="bg-[#181513] rounded-2xl border border-[#332A25] p-4 shadow-sm flex flex-col sm:flex-row items-center gap-3">
+        <span className="text-xs font-bold uppercase tracking-wider text-[#8D8178] whitespace-nowrap">
           Create Category:
         </span>
         <input
@@ -351,12 +351,12 @@ export default function MenuManagementPage() {
           placeholder="e.g. Handmade Pasta, Chef Specialties, Wine by Glass"
           value={newCatName}
           onChange={(e) => setNewCatName(e.target.value)}
-          className="w-full px-3 py-1.5 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-xs text-[#1C1C1C]"
+          className="w-full px-3 py-2 rounded-xl border border-[#332A25] bg-[#151311] text-xs text-[#F5F0E9] placeholder-[#8D8178] focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
           required
         />
         <button
           type="submit"
-          className="w-full sm:w-auto px-4 py-2 rounded-xl bg-[#FAF9F6] border border-[#E8E1DA] hover:bg-[#E8E1DA] text-xs font-bold text-[#4E342E] transition whitespace-nowrap cursor-pointer"
+          className="w-full sm:w-auto px-4 py-2 rounded-xl bg-[#8B5E45] hover:bg-[#9E6C51] text-[#F5F0E9] text-xs font-semibold transition whitespace-nowrap cursor-pointer shadow-sm"
         >
           Add Category
         </button>
@@ -367,62 +367,62 @@ export default function MenuManagementPage() {
         {categories.map(cat => {
           const itemsInCat = menuItems.filter(m => m.categoryId === cat.id);
           return (
-            <div key={cat.id} className="bg-white rounded-3xl border border-[#E8E1DA] p-6 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-[#E8E1DA] pb-3">
-                <h3 className="font-serif text-lg font-bold text-[#1C1C1C]">
+            <div key={cat.id} className="bg-[#181513] rounded-3xl border border-[#332A25] p-6 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-[#332A25] pb-3">
+                <h3 className="font-serif text-lg font-bold text-[#F5F0E9]">
                   {cat.name}
                 </h3>
-                <span className="text-xs text-[#6B625D]">
+                <span className="text-xs text-[#8D8178]">
                   {itemsInCat.length} dishes
                 </span>
               </div>
 
               {itemsInCat.length === 0 ? (
-                <p className="text-xs text-[#6B625D] italic py-2">
+                <p className="text-xs text-[#8D8178] italic py-2">
                   No dishes in this category yet.
                 </p>
               ) : (
-                <div className="divide-y divide-[#E8E1DA]/60">
+                <div className="divide-y divide-[#332A25]">
                   {itemsInCat.map(item => (
                     <div key={item.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div className="flex items-start gap-3">
                         {item.imageUrl && (
-                          <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-100 shrink-0">
+                          <div className="w-14 h-14 rounded-xl overflow-hidden bg-[#151311] shrink-0 border border-[#332A25]">
                             <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
                           </div>
                         )}
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="font-serif font-bold text-sm text-[#1C1C1C]">
+                            <h4 className="font-serif font-bold text-sm text-[#F5F0E9]">
                               {item.name}
                             </h4>
                             {item.isVegetarian && (
-                              <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[10px] font-semibold flex items-center gap-1 border border-emerald-200">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                              <span className="px-2 py-0.5 rounded-md bg-[#132A1C] text-[#86EFAC] text-[10px] font-semibold flex items-center gap-1 border border-[#22543D]">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#86EFAC]"></span>
                                 Veg
                               </span>
                             )}
                             {item.isNonVegetarian && (
-                              <span className="px-2 py-0.5 rounded-md bg-red-50 text-red-800 text-[10px] font-semibold flex items-center gap-1 border border-red-200">
-                                <span className="w-1.5 h-1.5 rounded-full bg-red-600"></span>
+                              <span className="px-2 py-0.5 rounded-md bg-[#2E1212] text-[#FCA5A5] text-[10px] font-semibold flex items-center gap-1 border border-[#7F1D1D]">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#FCA5A5]"></span>
                                 Non-Veg
                               </span>
                             )}
                             {item.isGlutenFree && (
-                              <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 text-[10px] font-semibold border border-amber-200">
+                              <span className="px-2 py-0.5 rounded-md bg-[#291F11] text-[#FDE68A] text-[10px] font-semibold border border-[#5E4018]">
                                 GF
                               </span>
                             )}
                             {!item.isAvailable && (
-                              <span className="px-2 py-0.5 rounded-md bg-red-100 text-red-700 text-[10px] font-bold">
+                              <span className="px-2 py-0.5 rounded-md bg-[#2E1212] text-[#FCA5A5] text-[10px] font-bold border border-[#7F1D1D]">
                                 Unavailable
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-[#6B625D] mt-0.5 max-w-xl">
+                          <p className="text-xs text-[#B7AAA0] mt-0.5 max-w-xl">
                             {item.description}
                           </p>
-                          <div className="mt-1 font-bold text-xs text-[#4E342E]">
+                          <div className="mt-1 font-bold text-xs text-[#C6A47E]">
                             ${item.price.toFixed(2)}
                           </div>
                         </div>
@@ -435,8 +435,8 @@ export default function MenuManagementPage() {
                           onClick={() => handleToggleAvailability(item)}
                           className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer flex items-center gap-1.5 ${
                             item.isAvailable
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
-                              : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200'
+                              ? 'bg-[#132A1C] text-[#86EFAC] border-[#22543D] hover:bg-[#22543D]/50'
+                              : 'bg-[#151311] text-[#8D8178] border-[#332A25] hover:text-[#F5F0E9]'
                           }`}
                         >
                           {item.isAvailable ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
@@ -446,7 +446,7 @@ export default function MenuManagementPage() {
                         <button
                           type="button"
                           onClick={() => handleDeleteItem(item.id)}
-                          className="p-1.5 rounded-xl hover:bg-red-50 text-red-600 border border-transparent hover:border-red-200 transition cursor-pointer"
+                          className="p-1.5 rounded-xl hover:bg-[#2E1212] text-red-400 border border-transparent hover:border-[#7F1D1D] transition cursor-pointer"
                           title="Delete dish"
                         >
                           <Trash2 className="w-4 h-4" />

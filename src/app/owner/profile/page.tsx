@@ -76,22 +76,22 @@ export default function OwnerProfilePage() {
   return (
     <div className="max-w-4xl space-y-8">
       <div>
-        <h1 className="font-serif text-2xl sm:text-3xl font-bold text-[#1C1C1C]">
+        <h1 className="font-serif text-2xl sm:text-3xl font-bold text-[#F5F0E9]">
           Restaurant Profile & Branding
         </h1>
-        <p className="text-sm text-[#6B625D] mt-1">
+        <p className="text-sm text-[#B7AAA0] mt-1">
           Public profile, culinary identity, cover media, and guest contact information.
         </p>
       </div>
 
-      <form onSubmit={handleSave} className="bg-white rounded-3xl border border-[#E8E1DA] p-6 sm:p-8 shadow-xs space-y-6">
+      <form onSubmit={handleSave} className="bg-[#181513] rounded-3xl border border-[#332A25] p-6 sm:p-8 shadow-sm space-y-6">
         
         {/* Banner Preview */}
-        <div className="relative h-48 w-full rounded-2xl overflow-hidden bg-gray-100 border border-[#E8E1DA]">
+        <div className="relative h-48 w-full rounded-2xl overflow-hidden bg-[#151311] border border-[#332A25]">
           {coverImageUrl ? (
             <img src={coverImageUrl} alt={name} className="w-full h-full object-cover" />
           ) : (
-            <div className="flex items-center justify-center h-full text-xs text-[#6B625D]">
+            <div className="flex items-center justify-center h-full text-xs text-[#8D8178]">
               No cover photo set
             </div>
           )}
@@ -101,113 +101,113 @@ export default function OwnerProfilePage() {
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block font-semibold uppercase text-[#6B625D] mb-1">Restaurant Name</label>
+              <label className="block font-semibold uppercase text-[#8D8178] mb-1">Restaurant Name</label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C] font-semibold text-sm"
+                className="w-full px-3 py-2 rounded-xl border border-[#332A25] bg-[#151311] text-[#F5F0E9] font-semibold text-sm focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
                 required
               />
             </div>
 
             <div>
-              <label className="block font-semibold uppercase text-[#6B625D] mb-1">Tagline</label>
+              <label className="block font-semibold uppercase text-[#8D8178] mb-1">Tagline</label>
               <input
                 type="text"
                 value={tagline}
                 onChange={(e) => setTagline(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
+                className="w-full px-3 py-2 rounded-xl border border-[#332A25] bg-[#151311] text-[#F5F0E9] focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
               />
             </div>
           </div>
 
           <div>
-            <label className="block font-semibold uppercase text-[#6B625D] mb-1">Cuisines (comma separated)</label>
+            <label className="block font-semibold uppercase text-[#8D8178] mb-1">Cuisines (comma separated)</label>
             <input
               type="text"
               value={cuisines}
               onChange={(e) => setCuisines(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
+              className="w-full px-3 py-2 rounded-xl border border-[#332A25] bg-[#151311] text-[#F5F0E9] focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
             />
           </div>
 
           <div>
-            <label className="block font-semibold uppercase text-[#6B625D] mb-1">Description</label>
+            <label className="block font-semibold uppercase text-[#8D8178] mb-1">Description</label>
             <textarea
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
+              className="w-full px-3 py-2 rounded-xl border border-[#332A25] bg-[#151311] text-[#F5F0E9] focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block font-semibold uppercase text-[#6B625D] mb-1">Phone</label>
+              <label className="block font-semibold uppercase text-[#8D8178] mb-1">Phone</label>
               <input
                 type="text"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
+                className="w-full px-3 py-2 rounded-xl border border-[#332A25] bg-[#151311] text-[#F5F0E9] focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
               />
             </div>
 
             <div>
-              <label className="block font-semibold uppercase text-[#6B625D] mb-1">Email</label>
+              <label className="block font-semibold uppercase text-[#8D8178] mb-1">Email</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
+                className="w-full px-3 py-2 rounded-xl border border-[#332A25] bg-[#151311] text-[#F5F0E9] focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block font-semibold uppercase text-[#6B625D] mb-1">Street Address</label>
+              <label className="block font-semibold uppercase text-[#8D8178] mb-1">Street Address</label>
               <input
                 type="text"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
+                className="w-full px-3 py-2 rounded-xl border border-[#332A25] bg-[#151311] text-[#F5F0E9] focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
               />
             </div>
 
             <div>
-              <label className="block font-semibold uppercase text-[#6B625D] mb-1">City, State</label>
+              <label className="block font-semibold uppercase text-[#8D8178] mb-1">City, State</label>
               <input
                 type="text"
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
+                className="w-full px-3 py-2 rounded-xl border border-[#332A25] bg-[#151311] text-[#F5F0E9] focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
               />
             </div>
           </div>
 
           <div>
-            <label className="block font-semibold uppercase text-[#6B625D] mb-1">Cover Image URL</label>
+            <label className="block font-semibold uppercase text-[#8D8178] mb-1">Cover Image URL</label>
             <input
               type="url"
               value={coverImageUrl}
               onChange={(e) => setCoverImageUrl(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
+              className="w-full px-3 py-2 rounded-xl border border-[#332A25] bg-[#151311] text-[#F5F0E9] focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
             />
           </div>
 
         </div>
 
-        <div className="flex items-center justify-between pt-4 border-t border-[#E8E1DA]">
+        <div className="flex items-center justify-between pt-4 border-t border-[#332A25]">
           {saved ? (
-            <span className="text-xs text-emerald-700 font-semibold flex items-center gap-1">
+            <span className="text-xs text-[#86EFAC] font-semibold flex items-center gap-1">
               <Check className="w-4 h-4" /> Profile updated successfully!
             </span>
           ) : <span />}
 
           <button
             type="submit"
-            className="px-6 py-2.5 rounded-xl bg-[#4E342E] hover:bg-[#795548] text-white text-xs font-semibold transition cursor-pointer shadow-xs"
+            className="px-6 py-2.5 rounded-xl bg-[#8B5E45] hover:bg-[#9E6C51] text-[#F5F0E9] text-xs font-semibold transition cursor-pointer shadow-sm"
           >
             Save Restaurant Profile
           </button>

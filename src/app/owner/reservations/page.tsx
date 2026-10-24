@@ -91,34 +91,34 @@ export default function OwnerReservationsPage() {
       {/* Title */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="font-serif text-2xl sm:text-3xl font-bold text-[#1C1C1C]">
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold text-[#F5F0E9]">
             Reservation & Pre-Order Console
           </h1>
-          <p className="text-sm text-[#6B625D] mt-1">
+          <p className="text-sm text-[#B7AAA0] mt-1">
             Table assignments, customer check-ins, and kitchen pre-order management.
           </p>
         </div>
       </div>
 
       {actionNotice && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-semibold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+        <div className="p-3.5 rounded-xl bg-[#132A1C] border border-[#22543D] text-xs text-[#86EFAC] font-semibold flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-[#86EFAC]" />
           <span>{actionNotice}</span>
         </div>
       )}
 
       {/* Filter and Search Bar */}
-      <div className="bg-white rounded-2xl border border-[#E8E1DA] p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="bg-[#181513] rounded-2xl border border-[#332A25] p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
         
         {/* Search Input */}
         <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-[#795548] absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-[#8D8178] absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Search by customer, phone, or reference..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-3 py-2 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-xs text-[#1C1C1C] focus:outline-none focus:ring-2 focus:ring-[#795548]/30"
+            className="w-full pl-10 pr-3 py-2 rounded-xl border border-[#332A25] bg-[#151311] text-xs text-[#F5F0E9] placeholder-[#8D8178] focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
           />
         </div>
 
@@ -130,8 +130,8 @@ export default function OwnerReservationsPage() {
               onClick={() => setStatusFilter(st)}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize whitespace-nowrap transition cursor-pointer ${
                 statusFilter === st
-                  ? 'bg-[#4E342E] text-white shadow-xs'
-                  : 'bg-[#FAF9F6] text-[#6B625D] hover:text-[#1C1C1C]'
+                  ? 'bg-[#8B5E45] text-[#F5F0E9] shadow-sm'
+                  : 'bg-[#151311] text-[#8D8178] hover:text-[#F5F0E9] border border-[#332A25]'
               }`}
             >
               {st.replace('_', ' ')}
@@ -145,48 +145,48 @@ export default function OwnerReservationsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
         {/* Table of bookings */}
-        <div className="lg:col-span-7 bg-white rounded-3xl border border-[#E8E1DA] overflow-hidden shadow-xs">
+        <div className="lg:col-span-7 bg-[#181513] rounded-3xl border border-[#332A25] overflow-hidden shadow-sm">
           {loading ? (
-            <div className="p-12 text-center text-xs text-[#6B625D]">Loading reservation ledger...</div>
+            <div className="p-12 text-center text-xs text-[#8D8178]">Loading reservation ledger...</div>
           ) : filtered.length === 0 ? (
-            <div className="p-12 text-center text-xs text-[#6B625D]">No reservations match this filter.</div>
+            <div className="p-12 text-center text-xs text-[#8D8178]">No reservations match this filter.</div>
           ) : (
-            <div className="divide-y divide-[#E8E1DA]/60">
+            <div className="divide-y divide-[#332A25]">
               {filtered.map(res => (
                 <div
                   key={res.id}
                   onClick={() => setSelectedBooking(res)}
                   className={`p-4 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                    selectedBooking?.id === res.id ? 'bg-[#FAF9F6] ring-1 ring-inset ring-[#795548]' : 'hover:bg-[#FAF9F6]/50'
+                    selectedBooking?.id === res.id ? 'bg-[#1C1917] ring-1 ring-inset ring-[#8B5E45]' : 'hover:bg-[#1C1917]/50'
                   }`}
                 >
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-[#4E342E]">
+                      <span className="font-mono text-xs font-bold text-[#C6A47E]">
                         {res.bookingReference}
                       </span>
-                      <strong className="font-serif font-bold text-sm text-[#1C1C1C]">
+                      <strong className="font-serif font-bold text-sm text-[#F5F0E9]">
                         {res.customerName}
                       </strong>
-                      <span className="px-2 py-0.5 rounded-md bg-[#FAF9F6] border border-[#E8E1DA] text-[10px] font-semibold text-[#4E342E]">
+                      <span className="px-2 py-0.5 rounded-md bg-[#151311] border border-[#332A25] text-[10px] font-semibold text-[#C6A47E]">
                         {res.partySize} Guests
                       </span>
                     </div>
 
-                    <div className="text-xs text-[#6B625D] mt-1 flex flex-wrap items-center gap-3">
+                    <div className="text-xs text-[#B7AAA0] mt-1 flex flex-wrap items-center gap-3">
                       <span>{res.reservationDate} at {res.startTime}</span>
-                      <span>Table: <strong className="text-[#1C1C1C]">{res.assignedTableName || 'None'}</strong></span>
-                      <span>Pre-Order: <strong className="text-[#1C1C1C]">${res.estimatedTotal.toFixed(2)}</strong></span>
+                      <span>Table: <strong className="text-[#F5F0E9]">{res.assignedTableName || 'None'}</strong></span>
+                      <span>Pre-Order: <strong className="text-[#F5F0E9]">${res.estimatedTotal.toFixed(2)}</strong></span>
                     </div>
                   </div>
 
                   <div>
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${
-                      res.status === 'confirmed' ? 'bg-emerald-50 text-emerald-800' :
-                      res.status === 'checked_in' ? 'bg-blue-50 text-blue-800' :
-                      res.status === 'pending' ? 'bg-amber-50 text-amber-800' :
-                      res.status === 'cancelled' ? 'bg-red-50 text-red-800' :
-                      'bg-gray-100 text-gray-800'
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize border ${
+                      res.status === 'confirmed' ? 'bg-[#132A1C] text-[#86EFAC] border-[#22543D]' :
+                      res.status === 'checked_in' ? 'bg-[#102A43] text-[#90CDF4] border-[#1E3A8A]' :
+                      res.status === 'pending' ? 'bg-[#291F11] text-[#FDE68A] border-[#5E4018]' :
+                      res.status === 'cancelled' ? 'bg-[#2E1212] text-[#FCA5A5] border-[#7F1D1D]' :
+                      'bg-[#151311] text-[#B7AAA0] border-[#332A25]'
                     }`}>
                       {res.status.replace('_', ' ')}
                     </span>
@@ -200,35 +200,35 @@ export default function OwnerReservationsPage() {
         {/* Selected Booking Operations Inspector */}
         <div className="lg:col-span-5 sticky top-24">
           {selectedBooking ? (
-            <div className="bg-white rounded-3xl border border-[#E8E1DA] p-6 shadow-md space-y-6">
+            <div className="bg-[#181513] rounded-3xl border border-[#332A25] p-6 shadow-xl space-y-6">
               
-              <div className="border-b border-[#E8E1DA] pb-4">
+              <div className="border-b border-[#332A25] pb-4">
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs font-bold text-[#795548]">
+                  <span className="font-mono text-xs font-bold text-[#C6A47E]">
                     Ref: {selectedBooking.bookingReference}
                   </span>
-                  <span className="text-xs font-semibold uppercase px-2 py-0.5 rounded-full bg-[#FAF9F6] border border-[#E8E1DA] text-[#4E342E]">
+                  <span className="text-xs font-semibold uppercase px-2 py-0.5 rounded-full bg-[#151311] border border-[#332A25] text-[#C6A47E]">
                     {selectedBooking.status.replace('_', ' ')}
                   </span>
                 </div>
-                <h3 className="font-serif text-xl font-bold text-[#1C1C1C] mt-1">
+                <h3 className="font-serif text-xl font-bold text-[#F5F0E9] mt-1">
                   {selectedBooking.customerName}
                 </h3>
-                <div className="flex items-center gap-3 text-xs text-[#6B625D] mt-1">
-                  <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {selectedBooking.customerPhone}</span>
-                  <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {selectedBooking.customerEmail}</span>
+                <div className="flex items-center gap-3 text-xs text-[#B7AAA0] mt-1">
+                  <span className="flex items-center gap-1"><Phone className="w-3 h-3 text-[#8D8178]" /> {selectedBooking.customerPhone}</span>
+                  <span className="flex items-center gap-1"><Mail className="w-3 h-3 text-[#8D8178]" /> {selectedBooking.customerEmail}</span>
                 </div>
               </div>
 
               {/* Status Change Controls (Host Actions) */}
               <div className="space-y-2">
-                <span className="block text-xs font-semibold uppercase tracking-wider text-[#6B625D]">
+                <span className="block text-xs font-semibold uppercase tracking-wider text-[#8D8178]">
                   Update Arrival & Service Status
                 </span>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <button
                     onClick={() => handleUpdateStatus(selectedBooking.id, 'checked_in')}
-                    className="p-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 font-semibold border border-blue-200 transition cursor-pointer flex items-center justify-center gap-1.5"
+                    className="p-2 rounded-xl bg-[#102A43] hover:bg-[#1E3A8A]/50 text-[#90CDF4] font-semibold border border-[#1E3A8A] transition cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     <UserCheck className="w-3.5 h-3.5" />
                     Guest Arrived (Check In)
@@ -236,22 +236,22 @@ export default function OwnerReservationsPage() {
 
                   <button
                     onClick={() => handleUpdateStatus(selectedBooking.id, 'completed')}
-                    className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold border border-gray-300 transition cursor-pointer flex items-center justify-center gap-1.5"
+                    className="p-2 rounded-xl bg-[#1C1917] hover:bg-[#38251F] text-[#F5F0E9] font-semibold border border-[#332A25] transition cursor-pointer flex items-center justify-center gap-1.5"
                   >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#86EFAC]" />
                     Completed & Billed
                   </button>
 
                   <button
                     onClick={() => handleUpdateStatus(selectedBooking.id, 'confirmed')}
-                    className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold border border-emerald-200 transition cursor-pointer"
+                    className="p-2 rounded-xl bg-[#132A1C] hover:bg-[#22543D]/50 text-[#86EFAC] font-semibold border border-[#22543D] transition cursor-pointer"
                   >
                     Confirm Booking
                   </button>
 
                   <button
                     onClick={() => handleUpdateStatus(selectedBooking.id, 'cancelled')}
-                    className="p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-800 font-semibold border border-red-200 transition cursor-pointer"
+                    className="p-2 rounded-xl bg-[#2E1212] hover:bg-[#7F1D1D]/50 text-[#FCA5A5] font-semibold border border-[#7F1D1D] transition cursor-pointer"
                   >
                     Cancel & Free Capacity
                   </button>
@@ -259,18 +259,18 @@ export default function OwnerReservationsPage() {
               </div>
 
               {/* Table Assignment */}
-              <div className="space-y-2 border-t border-[#E8E1DA] pt-4">
-                <span className="block text-xs font-semibold uppercase tracking-wider text-[#6B625D]">
+              <div className="space-y-2 border-t border-[#332A25] pt-4">
+                <span className="block text-xs font-semibold uppercase tracking-wider text-[#8D8178]">
                   Assigned Table
                 </span>
                 <select
                   value={selectedBooking.assignedTableId || ''}
                   onChange={(e) => handleAssignTable(selectedBooking.id, e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-xs font-semibold text-[#1C1C1C]"
+                  className="w-full px-3 py-2 rounded-xl border border-[#332A25] bg-[#151311] text-xs font-semibold text-[#F5F0E9] focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
                 >
                   <option value="">No Table Assigned</option>
                   {tables.map(tab => (
-                    <option key={tab.id} value={tab.id}>
+                    <option key={tab.id} value={tab.id} className="bg-[#151311] text-[#F5F0E9]">
                       {tab.tableNumber} - {tab.locationArea} ({tab.capacity} Seats)
                     </option>
                   ))}
@@ -278,38 +278,38 @@ export default function OwnerReservationsPage() {
               </div>
 
               {/* Pre-Ordered Food Dishes (Kitchen Display) */}
-              <div className="space-y-3 border-t border-[#E8E1DA] pt-4">
+              <div className="space-y-3 border-t border-[#332A25] pt-4">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-serif font-bold text-sm text-[#1C1C1C]">
+                  <h4 className="font-serif font-bold text-sm text-[#F5F0E9]">
                     Kitchen Pre-Order ({selectedBooking.items?.length || 0} items)
                   </h4>
-                  <span className="text-xs font-bold text-[#4E342E]">
+                  <span className="text-xs font-bold text-[#C6A47E]">
                     ${selectedBooking.estimatedTotal.toFixed(2)}
                   </span>
                 </div>
 
                 {selectedBooking.items && selectedBooking.items.length > 0 ? (
-                  <div className="divide-y divide-[#E8E1DA]/60 max-h-48 overflow-y-auto pr-1">
+                  <div className="divide-y divide-[#332A25] max-h-48 overflow-y-auto pr-1">
                     {selectedBooking.items.map((item, idx) => (
                       <div key={idx} className="py-2 flex items-center justify-between text-xs">
                         <div>
-                          <span className="font-bold text-[#1C1C1C]">{item.quantity}x</span> {item.name}
+                          <span className="font-bold text-[#F5F0E9]">{item.quantity}x</span> <span className="text-[#B7AAA0]">{item.name}</span>
                         </div>
-                        <span className="font-semibold text-[#6B625D]">
+                        <span className="font-semibold text-[#C6A47E]">
                           ${(item.price * item.quantity).toFixed(2)}
                         </span>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-[#6B625D] italic">
+                  <p className="text-xs text-[#8D8178] italic">
                     Customer selected table-only; food to be ordered at the table.
                   </p>
                 )}
 
                 {selectedBooking.specialRequests && (
-                  <div className="p-3 rounded-xl bg-[#FAF9F6] border border-[#E8E1DA] text-xs text-[#4E342E]">
-                    <span className="font-bold block mb-0.5">Guest Notes:</span>
+                  <div className="p-3 rounded-xl bg-[#151311] border border-[#332A25] text-xs text-[#B7AAA0]">
+                    <span className="font-bold text-[#F5F0E9] block mb-0.5">Guest Notes:</span>
                     {selectedBooking.specialRequests}
                   </div>
                 )}
@@ -317,8 +317,8 @@ export default function OwnerReservationsPage() {
 
             </div>
           ) : (
-            <div className="bg-white rounded-3xl border border-[#E8E1DA] p-8 text-center text-[#6B625D]">
-              <CalendarIcon className="w-8 h-8 mx-auto mb-2 text-[#795548]/50" />
+            <div className="bg-[#181513] rounded-3xl border border-[#332A25] p-8 text-center text-[#8D8178]">
+              <CalendarIcon className="w-8 h-8 mx-auto mb-2 text-[#8B5E45]" />
               <p className="text-sm">Click any reservation to inspect guest details, pre-orders, and change service status.</p>
             </div>
           )}

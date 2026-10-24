@@ -1,43 +1,92 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,600&display=swap');
 @import "tailwindcss";
 
+@theme {
+  --color-main-bg: #0B0B0B;
+  --color-secondary-bg: #111111;
+  --color-surface-elevated: #181513;
+  --color-card: #1C1917;
+  --color-primary-dark-brown: #38251F;
+  --color-secondary-brown: #54372D;
+  --color-accent-brown: #8B5E45;
+  --color-champagne: #C6A47E;
+  --color-champagne-light: #DFC4A5;
+  --color-text-primary: #F5F0E9;
+  --color-text-secondary: #B7AAA0;
+  --color-text-muted: #8D8178;
+  --color-theme-border: #332A25;
+  --color-input-bg: #151311;
+  --font-serif: 'Playfair Display', Georgia, Cambria, 'Times New Roman', serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
 :root {
-  --background: #F8F5F0;
-  --surface: #FFFFFF;
-  --foreground: #201B18;
-  --foreground-muted: #776B63;
-  --primary-brown: #795548;
-  --dark-brown: #3B2924;
-  --accent-beige: #E9DFD2;
-  --light-brown: #D7CCC8;
-  --border-color: #E6DDD3;
-  --success: #2E7D32;
-  --success-bg: #E8F5E9;
-  --warning: #ED6C02;
-  --warning-bg: #FFF4E5;
-  --error: #D32F2F;
-  --error-bg: #FFEBEE;
+  /* TableReserve Luxury Black & Dark Brown Theme */
+  --background: #0B0B0B;
+  --secondary-bg: #111111;
+  --surface-elevated: #181513;
+  --card-bg: #1C1917;
+  --primary-dark-brown: #38251F;
+  --secondary-brown: #54372D;
+  --accent-brown: #8B5E45;
+  --accent-brown-hover: #9E6C51;
+  --champagne: #C6A47E;
+  --champagne-light: #DFC4A5;
+  --text-primary: #F5F0E9;
+  --text-secondary: #B7AAA0;
+  --text-muted: #8D8178;
+  --border: #332A25;
+  --input-bg: #151311;
+
+  /* Status Colors with dark luxury backing */
+  --status-success: #4CAF50;
+  --status-success-bg: #142816;
+  --status-warning: #FFB74D;
+  --status-warning-bg: #2B2011;
+  --status-error: #EF5350;
+  --status-error-bg: #2B1515;
 }
 
 body {
-  background-color: var(--background);
-  color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: #0B0B0B;
+  color: #F5F0E9;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
 }
 
-/* Custom Scrollbar */
+/* Headings Serif Elegance */
+h1, h2, h3, .font-serif {
+  font-family: 'Playfair Display', Georgia, Cambria, 'Times New Roman', serif;
+  letter-spacing: -0.015em;
+}
+
+/* Subtle luxury focus outline */
+*:focus-visible {
+  outline: 2px solid #8B5E45;
+  outline-offset: 2px;
+}
+
+/* Custom Luxury Scrollbar */
 ::-webkit-scrollbar {
   width: 7px;
   height: 7px;
 }
 ::-webkit-scrollbar-track {
-  background: #F8F5F0;
+  background: #0B0B0B;
 }
 ::-webkit-scrollbar-thumb {
-  background: #E9DFD2;
+  background: #38251F;
   border-radius: 4px;
+  border: 1px solid #1C1917;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #795548;
+  background: #8B5E45;
+}
+
+/* Custom Text Selection */
+::selection {
+  background-color: rgba(139, 94, 69, 0.45);
+  color: #F5F0E9;
 }

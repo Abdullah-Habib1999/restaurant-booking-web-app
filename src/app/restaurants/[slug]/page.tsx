@@ -435,7 +435,7 @@ function RestaurantDetailContent() {
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-20 text-center text-[#6B625D]">
+      <div className="max-w-7xl mx-auto px-4 py-20 text-center text-[#8D8178]">
         Loading restaurant experience...
       </div>
     );
@@ -444,9 +444,9 @@ function RestaurantDetailContent() {
   if (!restaurant) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-20 text-center">
-        <h2 className="text-2xl font-bold text-[#1C1C1C]">Restaurant Not Found</h2>
-        <p className="text-sm text-[#6B625D] mt-2">The requested dining venue does not exist or has been unpublished.</p>
-        <Link href="/restaurants" className="mt-4 inline-block text-sm text-[#795548] font-semibold underline">
+        <h2 className="text-2xl font-bold text-[#F5F0E9] font-serif">Restaurant Not Found</h2>
+        <p className="text-sm text-[#B7AAA0] mt-2">The requested dining venue does not exist or has been unpublished.</p>
+        <Link href="/restaurants" className="mt-4 inline-block text-sm text-[#C6A47E] font-semibold underline">
           Return to restaurants
         </Link>
       </div>
@@ -459,7 +459,7 @@ function RestaurantDetailContent() {
       {/* Back button */}
       <Link
         href="/restaurants"
-        className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#6B625D] hover:text-[#1C1C1C] transition"
+        className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#B7AAA0] hover:text-[#F5F0E9] transition"
       >
         <ChevronLeft className="w-4 h-4" />
         Back to Restaurants
@@ -467,55 +467,55 @@ function RestaurantDetailContent() {
 
       {/* CONFIRMED STATE */}
       {step === 'confirmed' && (
-        <div className="bg-white rounded-3xl border border-[#E8E1DA] p-8 sm:p-12 text-center max-w-2xl mx-auto shadow-lg space-y-6">
-          <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
+        <div className="bg-[#181513] rounded-3xl border border-[#332A25] p-8 sm:p-12 text-center max-w-2xl mx-auto shadow-2xl shadow-black/80 space-y-6">
+          <div className="w-16 h-16 rounded-full bg-[#142816] border border-[#234A28] text-[#81C784] flex items-center justify-center mx-auto shadow-md">
             <Check className="w-8 h-8" />
           </div>
           <div>
-            <span className="text-xs uppercase font-bold tracking-widest text-emerald-700">
+            <span className="text-xs uppercase font-bold tracking-widest text-[#81C784]">
               Booking Confirmed
             </span>
-            <h2 className="font-serif text-3xl font-bold text-[#1C1C1C] mt-1">
+            <h2 className="font-serif text-3xl font-bold text-[#F5F0E9] mt-1">
               We look forward to welcoming you!
             </h2>
-            <p className="text-sm text-[#6B625D] mt-2">
-              Your reservation and kitchen pre-order at <strong className="text-[#1C1C1C]">{restaurant.name}</strong> has been secured.
+            <p className="text-sm text-[#B7AAA0] mt-2">
+              Your reservation and kitchen pre-order at <strong className="text-[#F5F0E9]">{restaurant.name}</strong> has been secured.
             </p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E1DA] text-left space-y-2 text-sm">
-            <div className="flex justify-between border-b border-[#E8E1DA]/80 pb-2">
-              <span className="text-[#6B625D]">Booking Reference:</span>
-              <strong className="font-mono text-base text-[#4E342E]">{confirmedBookingReference}</strong>
+          <div className="p-4 rounded-2xl bg-[#151311] border border-[#332A25] text-left space-y-2 text-sm">
+            <div className="flex justify-between border-b border-[#241E1A] pb-2">
+              <span className="text-[#B7AAA0]">Booking Reference:</span>
+              <strong className="font-mono text-base text-[#C6A47E]">{confirmedBookingReference}</strong>
             </div>
             <div className="flex justify-between">
-              <span className="text-[#6B625D]">Date & Time:</span>
-              <strong className="text-[#1C1C1C]">{visitDate} at {selectedSlot}</strong>
+              <span className="text-[#B7AAA0]">Date & Time:</span>
+              <strong className="text-[#F5F0E9]">{visitDate} at {selectedSlot}</strong>
             </div>
             <div className="flex justify-between">
-              <span className="text-[#6B625D]">Party Size:</span>
-              <strong className="text-[#1C1C1C]">{partySize} {partySize === 1 ? 'Guest' : 'Guests'}</strong>
+              <span className="text-[#B7AAA0]">Party Size:</span>
+              <strong className="text-[#F5F0E9]">{partySize} {partySize === 1 ? 'Guest' : 'Guests'}</strong>
             </div>
             {selectedTableId && (
-              <div className="flex justify-between items-center bg-[#F4EBE1]/60 px-2.5 py-1.5 rounded-lg border border-[#795548]/20">
-                <span className="text-[#4E342E] font-medium">Selected Table & Seats:</span>
-                <span className="font-bold text-[#4E342E]">
+              <div className="flex justify-between items-center bg-[#1C1917] px-2.5 py-1.5 rounded-lg border border-[#38251F]">
+                <span className="text-[#C6A47E] font-medium">Selected Table & Seats:</span>
+                <span className="font-bold text-[#F5F0E9]">
                   {tableSeats.find(t => t.tableId === selectedTableId)?.tableNumber || 'Assigned Table'}
                   {selectedSeats.length > 0 && ` • Seats: ${selectedSeats.map(s => `#${s}`).join(', ')}`}
                 </span>
               </div>
             )}
             <div className="flex justify-between">
-              <span className="text-[#6B625D]">Pre-Ordered Items:</span>
-              <strong className="text-[#1C1C1C]">{cartItemsList.length} dishes</strong>
+              <span className="text-[#B7AAA0]">Pre-Ordered Items:</span>
+              <strong className="text-[#F5F0E9]">{cartItemsList.length} dishes</strong>
             </div>
-            <div className="flex justify-between pt-2 border-t border-[#E8E1DA]/80">
-              <span className="text-[#6B625D]">Estimated Pre-Order Total:</span>
-              <strong className="text-base text-[#1C1C1C]">${estimatedTotal.toFixed(2)}</strong>
+            <div className="flex justify-between pt-2 border-t border-[#241E1A]">
+              <span className="text-[#B7AAA0]">Estimated Pre-Order Total:</span>
+              <strong className="text-base text-[#F5F0E9]">${estimatedTotal.toFixed(2)}</strong>
             </div>
           </div>
 
-          <p className="text-xs text-[#6B625D] leading-relaxed">
+          <p className="text-xs text-[#8D8178] leading-relaxed">
             Payment for pre-orders and any added items is settled at the venue upon dining. 
             Cancellations are accepted without fee up to {restaurant.cancellationCutoffHours} hours in advance.
           </p>
@@ -523,13 +523,13 @@ function RestaurantDetailContent() {
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
             <Link
               href="/my-bookings"
-              className="px-6 py-2.5 rounded-xl bg-[#4E342E] hover:bg-[#795548] text-white text-sm font-semibold transition shadow-xs"
+              className="px-6 py-2.5 rounded-xl bg-[#8B5E45] hover:bg-[#9E6C51] text-[#F5F0E9] text-sm font-semibold transition shadow-xs border border-[#8B5E45]/80"
             >
               View in My Bookings
             </Link>
             <Link
               href="/restaurants"
-              className="px-6 py-2.5 rounded-xl bg-[#FAF9F6] hover:bg-[#E8E1DA] text-[#1C1C1C] text-sm font-medium border border-[#E8E1DA] transition"
+              className="px-6 py-2.5 rounded-xl bg-[#151311] hover:bg-[#1C1917] text-[#B7AAA0] hover:text-[#F5F0E9] text-sm font-medium border border-[#332A25] transition"
             >
               Explore More Restaurants
             </Link>
@@ -542,62 +542,62 @@ function RestaurantDetailContent() {
         <div className="space-y-10">
           
           {/* Header Hero Banner */}
-          <div className="bg-white rounded-3xl border border-[#E8E1DA] overflow-hidden shadow-xs">
-            <div className="relative h-64 sm:h-80 w-full bg-gray-100">
+          <div className="bg-[#181513] rounded-3xl border border-[#332A25] overflow-hidden shadow-xl shadow-black/60">
+            <div className="relative h-64 sm:h-80 w-full bg-[#151311]">
               <img
                 src={restaurant.coverImageUrl}
                 alt={restaurant.name}
                 className="w-full h-full object-cover"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-              <div className="absolute bottom-6 left-6 right-6 text-white">
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0B0B0B]/90 via-[#0B0B0B]/40 to-transparent" />
+              <div className="absolute bottom-6 left-6 right-6 text-[#F5F0E9]">
                 <div className="flex flex-wrap items-center gap-2 mb-2">
                   {restaurant.cuisineType.map(c => (
-                    <span key={c} className="px-2.5 py-0.5 rounded-md bg-white/20 backdrop-blur-md text-xs font-medium">
+                    <span key={c} className="px-2.5 py-0.5 rounded-md bg-[#0B0B0B]/85 backdrop-blur-md text-xs font-medium border border-[#332A25]">
                       {c}
                     </span>
                   ))}
-                  <span className="px-2.5 py-0.5 rounded-md bg-[#795548] text-xs font-semibold">
+                  <span className="px-2.5 py-0.5 rounded-md bg-[#38251F]/90 text-xs font-semibold text-[#C6A47E] border border-[#54372D]">
                     {restaurant.priceTier}
                   </span>
-                  <div className="px-3 py-0.5 rounded-md bg-white/95 backdrop-blur-md text-[#201B18] text-xs font-semibold flex items-center gap-1.5 shadow-2xs">
+                  <div className="px-3 py-0.5 rounded-md bg-[#151311]/95 backdrop-blur-md text-[#F5F0E9] text-xs font-semibold flex items-center gap-1.5 border border-[#332A25] shadow-xs">
                     {restaurant.reviewCount && restaurant.reviewCount > 0 ? (
                       <>
-                        <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                        <Star className="w-3.5 h-3.5 text-[#C6A47E] fill-[#C6A47E]" />
                         <span>{restaurant.rating?.toFixed(1)}/5</span>
-                        <span className="text-[#6B625D] font-normal">
+                        <span className="text-[#8D8178] font-normal">
                           ({restaurant.reviewCount} verified {restaurant.reviewCount === 1 ? 'review' : 'reviews'})
                         </span>
                       </>
                     ) : (
                       <>
-                        <Star className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="text-[#6B625D]">No reviews yet</span>
+                        <Star className="w-3.5 h-3.5 text-[#54372D]" />
+                        <span className="text-[#8D8178]">No reviews yet</span>
                       </>
                     )}
                   </div>
                 </div>
-                <h1 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight">
+                <h1 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight text-[#F5F0E9]">
                   {restaurant.name}
                 </h1>
-                <p className="text-sm text-gray-200 mt-1">
+                <p className="text-sm text-[#C6A47E] mt-1">
                   {restaurant.tagline}
                 </p>
               </div>
             </div>
 
             {/* Quick Details Bar */}
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 border-b border-[#E8E1DA] bg-[#FAF9F6]/50 text-xs text-[#6B625D]">
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 border-b border-[#332A25] bg-[#151311] text-xs text-[#B7AAA0]">
               <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-[#795548] shrink-0" />
+                <MapPin className="w-4 h-4 text-[#C6A47E] shrink-0" />
                 <span>{restaurant.address}, {restaurant.city}</span>
               </div>
               <div className="flex items-center gap-2">
-                <Phone className="w-4 h-4 text-[#795548] shrink-0" />
+                <Phone className="w-4 h-4 text-[#C6A47E] shrink-0" />
                 <span>{restaurant.phone}</span>
               </div>
               <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-[#795548] shrink-0" />
+                <Users className="w-4 h-4 text-[#C6A47E] shrink-0" />
                 <span>Capacity: {restaurant.totalSeatingCapacity} seats</span>
               </div>
               
@@ -605,18 +605,18 @@ function RestaurantDetailContent() {
               <div className="relative">
                 <div 
                   onClick={() => setShowWeeklyHours(prev => !prev)}
-                  className="flex items-center justify-between gap-1.5 cursor-pointer hover:text-[#201B18] transition p-1.5 -m-1.5 rounded-lg hover:bg-white border border-transparent hover:border-[#E8E1DA]"
+                  className="flex items-center justify-between gap-1.5 cursor-pointer hover:text-[#F5F0E9] transition p-1.5 -m-1.5 rounded-lg hover:bg-[#1C1917] border border-transparent hover:border-[#332A25]"
                   title="Click to view weekly schedule"
                 >
                   <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-[#795548] shrink-0" />
+                    <Clock className="w-4 h-4 text-[#C6A47E] shrink-0" />
                     <div>
                       {todaySchedule ? (
                         todaySchedule.isClosed ? (
-                          <span className="font-semibold text-rose-700">Closed Today</span>
+                          <span className="font-semibold text-rose-400">Closed Today</span>
                         ) : (
                           <span>
-                            <strong className="text-emerald-700 font-semibold">Open: </strong>
+                            <strong className="text-[#81C784] font-semibold">Open: </strong>
                             {todaySchedule.openTime} – {todaySchedule.closeTime}
                           </span>
                         )
@@ -625,15 +625,15 @@ function RestaurantDetailContent() {
                       )}
                     </div>
                   </div>
-                  <ChevronDown className={`w-3.5 h-3.5 text-[#795548] transition-transform ${showWeeklyHours ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-3.5 h-3.5 text-[#C6A47E] transition-transform ${showWeeklyHours ? 'rotate-180' : ''}`} />
                 </div>
 
                 {/* Weekly Hours Popover */}
                 {showWeeklyHours && (
-                  <div className="absolute right-0 top-full mt-2 w-64 p-3.5 bg-white rounded-2xl border border-[#E8E1DA] shadow-xl z-30 text-xs space-y-2 animate-in fade-in duration-150">
-                    <div className="flex items-center justify-between border-b border-[#E8E1DA] pb-1.5 font-bold text-[#201B18]">
+                  <div className="absolute right-0 top-full mt-2 w-64 p-3.5 bg-[#1C1917] rounded-2xl border border-[#332A25] shadow-2xl z-30 text-xs space-y-2 animate-in fade-in duration-150">
+                    <div className="flex items-center justify-between border-b border-[#332A25] pb-1.5 font-bold text-[#F5F0E9]">
                       <span>Weekly Operating Hours</span>
-                      <span className="text-[10px] text-[#795548] font-normal">7-Day Schedule</span>
+                      <span className="text-[10px] text-[#C6A47E] font-normal">7-Day Schedule</span>
                     </div>
                     <div className="space-y-1.5">
                       {[0, 1, 2, 3, 4, 5, 6].map(dayIndex => {
@@ -648,16 +648,16 @@ function RestaurantDetailContent() {
                           <div 
                             key={dayIndex}
                             className={`flex justify-between items-center py-0.5 px-1.5 rounded-md ${
-                              isToday ? 'bg-[#FAF6F0] font-bold text-[#3B2924]' : 'text-[#6B625D]'
+                              isToday ? 'bg-[#38251F] font-bold text-[#F5F0E9]' : 'text-[#B7AAA0]'
                             }`}
                           >
                             <span className="flex items-center gap-1.5">
                               {dayNames[dayIndex]}
-                              {isToday && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>}
+                              {isToday && <span className="w-1.5 h-1.5 rounded-full bg-[#81C784]"></span>}
                             </span>
                             <span>
                               {!dayH || dayH.isClosed ? (
-                                <span className="text-rose-600 font-medium">Closed</span>
+                                <span className="text-rose-400 font-medium">Closed</span>
                               ) : (
                                 `${dayH.openTime} – ${dayH.closeTime}`
                               )}
@@ -672,14 +672,14 @@ function RestaurantDetailContent() {
             </div>
 
             <div className="p-6">
-              <h3 className="font-serif text-base font-bold text-[#1C1C1C]">About the Venue</h3>
-              <p className="text-sm text-[#6B625D] mt-2 leading-relaxed">
+              <h3 className="font-serif text-base font-bold text-[#F5F0E9]">About the Venue</h3>
+              <p className="text-sm text-[#B7AAA0] mt-2 leading-relaxed">
                 {restaurant.description}
               </p>
-              <div className="mt-4 p-3 rounded-xl bg-[#FAF9F6] border border-[#E8E1DA] text-xs text-[#6B625D] flex items-start gap-2">
-                <Info className="w-4 h-4 text-[#795548] shrink-0 mt-0.5" />
+              <div className="mt-4 p-3 rounded-xl bg-[#151311] border border-[#332A25] text-xs text-[#B7AAA0] flex items-start gap-2">
+                <Info className="w-4 h-4 text-[#C6A47E] shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-semibold text-[#1C1C1C]">Cancellation Policy: </span>
+                  <span className="font-semibold text-[#F5F0E9]">Cancellation Policy: </span>
                   {restaurant.cancellationPolicy}
                 </div>
               </div>
@@ -691,13 +691,13 @@ function RestaurantDetailContent() {
             
             {/* LEFT COLUMN: Booking Parameters & Checkout */}
             <div className="lg:col-span-5 space-y-6 order-1">
-              <div className="bg-white rounded-3xl border border-[#E8E1DA] p-6 shadow-md space-y-6">
+              <div className="bg-[#181513] rounded-3xl border border-[#332A25] p-6 shadow-2xl space-y-6">
                 
-                <div className="border-b border-[#E8E1DA] pb-4">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#795548]">
+                <div className="border-b border-[#332A25] pb-4">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#C6A47E]">
                     Reservation Details • Cinema-Style Selection
                   </span>
-                  <h3 className="font-serif text-xl font-bold text-[#1C1C1C] mt-0.5">
+                  <h3 className="font-serif text-xl font-bold text-[#F5F0E9] mt-0.5">
                     Reserve Your Table & Seats
                   </h3>
                 </div>
@@ -706,7 +706,7 @@ function RestaurantDetailContent() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#6B625D] mb-1">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#B7AAA0] mb-1">
                         Date
                       </label>
                       <input
@@ -714,21 +714,21 @@ function RestaurantDetailContent() {
                         value={visitDate}
                         min={todayStr}
                         onChange={(e) => setVisitDate(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-[#E8E1DA] text-xs font-medium text-[#1C1C1C] bg-[#FAF9F6]"
+                        className="w-full px-3 py-2 rounded-xl border border-[#332A25] text-xs font-medium text-[#F5F0E9] bg-[#151311] focus:outline-hidden focus:border-[#8B5E45]"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#6B625D] mb-1">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#B7AAA0] mb-1">
                         Party Size
                       </label>
                       <select
                         value={partySize}
                         onChange={(e) => setPartySize(Number(e.target.value))}
-                        className="w-full px-3 py-2 rounded-xl border border-[#E8E1DA] text-xs font-medium text-[#1C1C1C] bg-[#FAF9F6]"
+                        className="w-full px-3 py-2 rounded-xl border border-[#332A25] text-xs font-medium text-[#F5F0E9] bg-[#151311] focus:outline-hidden focus:border-[#8B5E45]"
                       >
                         {[1, 2, 3, 4, 5, 6, 8, 10, 12, 14].map(num => (
-                          <option key={num} value={num}>
+                          <option key={num} value={num} className="bg-[#181513] text-[#F5F0E9]">
                             {num} {num === 1 ? 'Guest' : 'Guests'}
                           </option>
                         ))}
@@ -739,78 +739,78 @@ function RestaurantDetailContent() {
                   {/* Slots with Genuine Availability Indicators */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#6B625D]">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#B7AAA0]">
                         Available Time Slots
                       </label>
-                      <span className="text-[10px] text-[#795548]">
+                      <span className="text-[10px] text-[#C6A47E]">
                         Slot Duration: {restaurant.slotDurationMinutes} mins
                       </span>
                     </div>
 
                     {checkingSlots ? (
-                      <div className="text-xs text-[#6B625D] py-5 text-center animate-pulse flex items-center justify-center gap-2">
-                        <span className="w-3.5 h-3.5 border-2 border-[#795548] border-t-transparent rounded-full animate-spin"></span>
+                      <div className="text-xs text-[#B7AAA0] py-5 text-center animate-pulse flex items-center justify-center gap-2">
+                        <span className="w-3.5 h-3.5 border-2 border-[#8B5E45] border-t-transparent rounded-full animate-spin"></span>
                         <span>Checking available times...</span>
                       </div>
                     ) : slotsStatus === 'closed' ? (
-                      <div className="p-3.5 rounded-xl bg-rose-50 text-rose-900 text-xs border border-rose-200 space-y-1">
-                        <div className="font-semibold flex items-center gap-1.5 text-rose-800">
-                          <Clock className="w-4 h-4 text-rose-600 shrink-0" />
+                      <div className="p-3.5 rounded-xl bg-[#241311] text-[#FCA5A5] text-xs border border-[#4A201D] space-y-1">
+                        <div className="font-semibold flex items-center gap-1.5 text-rose-300">
+                          <Clock className="w-4 h-4 text-rose-400 shrink-0" />
                           <span>This restaurant is closed on the selected date.</span>
                         </div>
-                        <p className="text-[11px] text-rose-700 leading-relaxed">
+                        <p className="text-[11px] text-rose-200/80 leading-relaxed">
                           {slotsMessage || `${restaurant.name} has no scheduled operating hours on ${visitDate}. Please select another date.`}
                         </p>
                         <button
                           type="button"
                           onClick={() => setShowWeeklyHours(true)}
-                          className="text-[11px] font-semibold text-rose-800 underline underline-offset-2 hover:text-rose-950 mt-1 cursor-pointer block"
+                          className="text-[11px] font-semibold text-[#C6A47E] underline underline-offset-2 hover:text-[#F5F0E9] mt-1 cursor-pointer block"
                         >
                           View 7-Day Operating Hours
                         </button>
                       </div>
                     ) : slotsStatus === 'missing_schedule' ? (
-                      <div className="p-3.5 rounded-xl bg-amber-50 text-amber-900 text-xs border border-amber-200 space-y-1">
-                        <div className="font-semibold flex items-center gap-1.5 text-amber-800">
-                          <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                      <div className="p-3.5 rounded-xl bg-[#291F11] text-[#FDE68A] text-xs border border-[#5E4018] space-y-1">
+                        <div className="font-semibold flex items-center gap-1.5 text-amber-300">
+                          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
                           <span>Opening hours have not been configured for this restaurant.</span>
                         </div>
-                        <p className="text-[11px] text-amber-700 leading-relaxed">
+                        <p className="text-[11px] text-amber-200/80 leading-relaxed">
                           The management has not published hours for this date. Please check back soon or contact the venue directly.
                         </p>
                       </div>
                     ) : slotsStatus === 'no_slots' ? (
-                      <div className="p-3.5 rounded-xl bg-amber-50 text-amber-900 text-xs border border-amber-200 space-y-1">
-                        <div className="font-semibold flex items-center gap-1.5 text-amber-800">
-                          <Clock className="w-4 h-4 text-amber-700 shrink-0" />
+                      <div className="p-3.5 rounded-xl bg-[#291F11] text-[#FDE68A] text-xs border border-[#5E4018] space-y-1">
+                        <div className="font-semibold flex items-center gap-1.5 text-amber-300">
+                          <Clock className="w-4 h-4 text-amber-400 shrink-0" />
                           <span>No reservation times are available for this date. Please try another date.</span>
                         </div>
-                        <p className="text-[11px] text-amber-700 leading-relaxed">
+                        <p className="text-[11px] text-amber-200/80 leading-relaxed">
                           All available capacity for a party of {partySize} on {visitDate} has been filled or previous slots have passed.
                         </p>
                       </div>
                     ) : slotsStatus === 'error' ? (
-                      <div className="p-3.5 rounded-xl bg-red-50 text-red-900 text-xs border border-red-200 space-y-2">
-                        <div className="font-semibold flex items-center gap-1.5 text-red-800">
-                          <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                      <div className="p-3.5 rounded-xl bg-[#241311] text-[#FCA5A5] text-xs border border-[#4A201D] space-y-2">
+                        <div className="font-semibold flex items-center gap-1.5 text-rose-300">
+                          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
                           <span>We couldn't load availability. Please try again.</span>
                         </div>
-                        <p className="text-[11px] text-red-700">
+                        <p className="text-[11px] text-rose-200/80">
                           {slotsMessage || 'Unable to connect to live booking service.'}
                         </p>
                         <button
                           type="button"
                           onClick={() => fetchSlots(false)}
-                          className="px-3 py-1.5 rounded-lg bg-red-100 hover:bg-red-200 text-red-800 font-semibold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-xs"
+                          className="px-3 py-1.5 rounded-lg bg-[#38251F] hover:bg-[#54372D] text-[#F5F0E9] font-semibold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-xs border border-[#332A25]"
                         >
                           <RefreshCw className="w-3.5 h-3.5" />
                           <span>Retry Availability</span>
                         </button>
                       </div>
                     ) : availableSlots.length === 0 ? (
-                      <div className="p-3.5 rounded-xl bg-amber-50 text-amber-900 text-xs border border-amber-200 space-y-1">
-                        <div className="font-semibold flex items-center gap-1.5 text-amber-800">
-                          <Clock className="w-4 h-4 text-amber-700 shrink-0" />
+                      <div className="p-3.5 rounded-xl bg-[#291F11] text-[#FDE68A] text-xs border border-[#5E4018] space-y-1">
+                        <div className="font-semibold flex items-center gap-1.5 text-amber-300">
+                          <Clock className="w-4 h-4 text-amber-400 shrink-0" />
                           <span>No reservation times are available for this date. Please try another date.</span>
                         </div>
                       </div>
@@ -824,15 +824,15 @@ function RestaurantDetailContent() {
                             onClick={() => setSelectedSlot(slot.time)}
                             className={`p-2 rounded-xl text-xs font-medium transition cursor-pointer flex flex-col items-center justify-center border ${
                               selectedSlot === slot.time
-                                ? 'bg-[#4E342E] text-white border-[#4E342E] shadow-xs'
+                                ? 'bg-[#8B5E45] text-[#F5F0E9] border-[#8B5E45] shadow-md ring-1 ring-[#C6A47E]/40'
                                 : slot.isAvailable
-                                ? 'bg-[#FAF9F6] hover:bg-[#E8E1DA]/40 text-[#1C1C1C] border-[#E8E1DA]'
-                                : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed line-through'
+                                ? 'bg-[#151311] hover:bg-[#38251F]/40 text-[#F5F0E9] border-[#332A25]'
+                                : 'bg-[#111111] text-[#8D8178]/40 border-[#221B17] cursor-not-allowed line-through'
                             }`}
                             title={slot.reason || `${slot.remainingSeats} seats available`}
                           >
                             <span>{slot.formattedTime}</span>
-                            <span className={`text-[9px] mt-0.5 ${selectedSlot === slot.time ? 'text-gray-200' : 'text-[#795548]'}`}>
+                            <span className={`text-[9px] mt-0.5 ${selectedSlot === slot.time ? 'text-[#F5F0E9]/90 font-semibold' : 'text-[#C6A47E]'}`}>
                               {slot.isAvailable ? `${slot.remainingSeats} seats` : 'Full'}
                             </span>
                           </button>
@@ -842,10 +842,10 @@ function RestaurantDetailContent() {
                   </div>
 
                   {/* Selected Seats & Table Status (Cinema-style badge) */}
-                  <div className="p-3 rounded-2xl bg-[#F8F5F0] border border-[#E8E1DA] space-y-2">
+                  <div className="p-3.5 rounded-2xl bg-[#151311] border border-[#332A25] space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#795548] flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-[#795548]" />
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#C6A47E] flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-[#C6A47E]" />
                         Seat & Table Selection
                       </span>
                       {selectedTableId && (
@@ -859,7 +859,7 @@ function RestaurantDetailContent() {
                               setSeatHoldToken(null);
                             }
                           }}
-                          className="text-[11px] text-[#795548] hover:text-[#3B2924] underline cursor-pointer"
+                          className="text-[11px] text-[#C6A47E] hover:text-[#F5F0E9] underline cursor-pointer"
                         >
                           Change
                         </button>
@@ -868,33 +868,33 @@ function RestaurantDetailContent() {
 
                     {selectedTableId ? (
                       <div className="space-y-1 text-xs">
-                        <div className="flex items-center justify-between font-semibold text-[#3B2924]">
+                        <div className="flex items-center justify-between font-semibold text-[#F5F0E9]">
                           <span>Table:</span>
-                          <span>{tableSeats.find(t => t.tableId === selectedTableId)?.tableNumber || 'Selected Table'} ({tableSeats.find(t => t.tableId === selectedTableId)?.locationArea})</span>
+                          <span className="text-[#C6A47E]">{tableSeats.find(t => t.tableId === selectedTableId)?.tableNumber || 'Selected Table'} ({tableSeats.find(t => t.tableId === selectedTableId)?.locationArea})</span>
                         </div>
-                        <div className="flex items-center justify-between text-[#6B625D]">
+                        <div className="flex items-center justify-between text-[#B7AAA0]">
                           <span>Cinema Seats:</span>
                           <div className="flex gap-1 flex-wrap justify-end">
                             {selectedSeats.length > 0 ? (
                               selectedSeats.map(s => (
-                                <span key={s} className="px-2 py-0.5 rounded-md bg-[#3B2924] text-white text-[10px] font-bold">
+                                <span key={s} className="px-2 py-0.5 rounded-md bg-[#8B5E45] text-[#F5F0E9] text-[10px] font-bold border border-[#C6A47E]/40">
                                   Seat #{s}
                                 </span>
                               ))
                             ) : (
-                              <span className="text-amber-800 font-medium">Whole Table</span>
+                              <span className="text-[#C6A47E] font-medium">Whole Table</span>
                             )}
                           </div>
                         </div>
                         {seatHoldToken && (
-                          <div className="pt-1 text-[10px] text-amber-800 flex items-center gap-1 font-medium">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                          <div className="pt-1 text-[10px] text-[#C6A47E] flex items-center gap-1 font-medium">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#C6A47E] animate-ping"></span>
                             Held exclusively for you while booking is completed
                           </div>
                         )}
                       </div>
                     ) : (
-                      <p className="text-xs text-[#795548] italic">
+                      <p className="text-xs text-[#8D8178] italic">
                         Choose your preferred seats or table from the interactive map.
                       </p>
                     )}
@@ -902,7 +902,7 @@ function RestaurantDetailContent() {
                 </div>
 
                 {/* MOBILE ONLY: Seating map appears immediately after booking details on small screens */}
-                <div className="block lg:hidden pt-2 border-t border-[#E8E1DA]">
+                <div className="block lg:hidden pt-2 border-t border-[#332A25]">
                   <InteractiveSeatingMap
                     restaurantName={restaurant.name}
                     tables={tableSeats}
@@ -916,83 +916,83 @@ function RestaurantDetailContent() {
                 </div>
 
                 {/* Order Summary Preview */}
-                <div className="border-t border-[#E8E1DA] pt-4 space-y-3">
-                  <div className="flex items-center justify-between text-xs font-semibold text-[#1C1C1C]">
+                <div className="border-t border-[#332A25] pt-4 space-y-3">
+                  <div className="flex items-center justify-between text-xs font-semibold text-[#F5F0E9]">
                     <span>Pre-Order Summary ({cartItemsList.length} items)</span>
-                    <span>${subtotal.toFixed(2)}</span>
+                    <span className="text-[#C6A47E]">${subtotal.toFixed(2)}</span>
                   </div>
 
                   {cartItemsList.length > 0 ? (
                     <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
                       {cartItemsList.map(({ item, quantity, lineTotal }) => (
-                        <div key={item!.id} className="flex justify-between text-xs text-[#6B625D]">
+                        <div key={item!.id} className="flex justify-between text-xs text-[#B7AAA0]">
                           <span>{quantity}x {item!.name}</span>
-                          <span>${lineTotal.toFixed(2)}</span>
+                          <span className="text-[#F5F0E9]">${lineTotal.toFixed(2)}</span>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-[#6B625D] italic">
+                    <p className="text-xs text-[#8D8178] italic">
                       No food pre-ordered yet. You can order upon arrival or add items from the menu.
                     </p>
                   )}
 
-                  <div className="border-t border-[#E8E1DA]/70 pt-2 space-y-1 text-xs">
-                    <div className="flex justify-between text-[#6B625D]">
+                  <div className="border-t border-[#332A25]/70 pt-2 space-y-1 text-xs">
+                    <div className="flex justify-between text-[#8D8178]">
                       <span>Estimated Tax (8.875%):</span>
                       <span>${tax.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between text-sm font-bold text-[#1C1C1C] pt-1">
+                    <div className="flex justify-between text-sm font-bold text-[#F5F0E9] pt-1">
                       <span>Estimated Total:</span>
-                      <span>${estimatedTotal.toFixed(2)}</span>
+                      <span className="text-[#C6A47E]">${estimatedTotal.toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Customer Contact Details */}
-                <div className="border-t border-[#E8E1DA] pt-4 space-y-3">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#6B625D]">
+                <div className="border-t border-[#332A25] pt-4 space-y-3">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#C6A47E]">
                     Customer Contact
                   </span>
 
                   <div className="space-y-2 text-xs">
                     <div>
-                      <label className="block text-[#6B625D] mb-0.5">Full Name</label>
+                      <label className="block text-[#B7AAA0] mb-0.5">Full Name</label>
                       <input
                         type="text"
                         value={customerName}
                         onChange={(e) => setCustomerName(e.target.value)}
-                        className="w-full px-3 py-1.5 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
+                        className="w-full px-3 py-1.5 rounded-xl border border-[#332A25] bg-[#151311] text-[#F5F0E9] focus:outline-hidden focus:border-[#8B5E45]"
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-[#6B625D] mb-0.5">Email</label>
+                        <label className="block text-[#B7AAA0] mb-0.5">Email</label>
                         <input
                           type="email"
                           value={customerEmail}
                           onChange={(e) => setCustomerEmail(e.target.value)}
-                          className="w-full px-3 py-1.5 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
+                          className="w-full px-3 py-1.5 rounded-xl border border-[#332A25] bg-[#151311] text-[#F5F0E9] focus:outline-hidden focus:border-[#8B5E45]"
                         />
                       </div>
                       <div>
-                        <label className="block text-[#6B625D] mb-0.5">Phone</label>
+                        <label className="block text-[#B7AAA0] mb-0.5">Phone</label>
                         <input
                           type="tel"
                           value={customerPhone}
                           onChange={(e) => setCustomerPhone(e.target.value)}
-                          className="w-full px-3 py-1.5 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C]"
+                          className="w-full px-3 py-1.5 rounded-xl border border-[#332A25] bg-[#151311] text-[#F5F0E9] focus:outline-hidden focus:border-[#8B5E45]"
                         />
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[#6B625D] mb-0.5">Special Dietary / Seating Request</label>
+                      <label className="block text-[#B7AAA0] mb-0.5">Special Dietary / Seating Request</label>
                       <textarea
                         rows={2}
                         value={specialRequests}
                         onChange={(e) => setSpecialRequests(e.target.value)}
                         placeholder="e.g. Anniversary celebration, peanut allergy, window seat preference"
-                        className="w-full px-3 py-1.5 rounded-xl border border-[#E8E1DA] bg-[#FAF9F6] text-[#1C1C1C] text-xs"
+                        className="w-full px-3 py-1.5 rounded-xl border border-[#332A25] bg-[#151311] text-[#F5F0E9] placeholder-[#8D8178] text-xs focus:outline-hidden focus:border-[#8B5E45]"
                       />
                     </div>
                   </div>
@@ -1000,8 +1000,8 @@ function RestaurantDetailContent() {
 
                 {/* Error Banner */}
                 {bookingError && (
-                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  <div className="p-3 rounded-xl bg-[#241311] border border-[#4A201D] text-xs text-rose-300 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
                     <span>{bookingError}</span>
                   </div>
                 )}
@@ -1011,10 +1011,10 @@ function RestaurantDetailContent() {
                   type="button"
                   disabled={!selectedSlot || isSubmitting}
                   onClick={handleInitiateBooking}
-                  className={`w-full py-3 px-4 rounded-xl font-semibold text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer ${
+                  className={`w-full py-3.5 px-4 rounded-xl font-semibold text-sm transition-all duration-200 shadow-lg flex items-center justify-center gap-2 cursor-pointer ${
                     selectedSlot && !isSubmitting
-                      ? 'bg-[#4E342E] hover:bg-[#795548] text-white'
-                      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                      ? 'bg-[#8B5E45] hover:bg-[#9E6C51] text-[#F5F0E9] shadow-[#8B5E45]/20 hover:shadow-[#8B5E45]/30'
+                      : 'bg-[#151311] text-[#8D8178] border border-[#332A25] cursor-not-allowed opacity-60'
                   }`}
                 >
                   {isSubmitting ? (
@@ -1029,7 +1029,7 @@ function RestaurantDetailContent() {
                   )}
                 </button>
 
-                <p className="text-[11px] text-[#6B625D] text-center leading-relaxed">
+                <p className="text-[11px] text-[#8D8178] text-center leading-relaxed">
                   By booking, you agree to {restaurant.name}’s reservation policy. No pre-payment is deducted now; settlement occurs at the restaurant.
                 </p>
 
@@ -1053,33 +1053,33 @@ function RestaurantDetailContent() {
           </div>
 
         {/* SECTION: FULL MENU & ADVANCE PRE-ORDER */}
-        <div className="bg-white rounded-3xl border border-[#E8E1DA] p-6 sm:p-8 shadow-xs space-y-6">
+        <div className="bg-[#181513] rounded-3xl border border-[#332A25] p-6 sm:p-8 shadow-2xl space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h2 className="font-serif text-2xl font-bold text-[#1C1C1C]">
+              <h2 className="font-serif text-2xl font-bold text-[#F5F0E9]">
                 Chef’s Menu & Advance Pre-Order
               </h2>
-              <p className="text-xs text-[#6B625D] mt-1">
+              <p className="text-xs text-[#B7AAA0] mt-1">
                 Select courses in advance to guarantee kitchen prep upon your arrival, or skip and order at the table.
               </p>
             </div>
 
             {cartItemsList.length > 0 && (
-              <div className="flex items-center gap-2 text-xs font-semibold px-3.5 py-1.5 rounded-full bg-[#FAF9F6] border border-[#795548]/30 text-[#4E342E]">
-                <ShoppingBag className="w-4 h-4 text-[#795548]" />
+              <div className="flex items-center gap-2 text-xs font-semibold px-3.5 py-1.5 rounded-full bg-[#151311] border border-[#8B5E45]/40 text-[#F5F0E9]">
+                <ShoppingBag className="w-4 h-4 text-[#C6A47E]" />
                 {cartItemsList.length} items in pre-order (${subtotal.toFixed(2)})
               </div>
             )}
           </div>
 
           {/* Category Pills */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-[#E8E1DA]">
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-[#332A25]">
             <button
               onClick={() => setActiveCategory('all')}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition cursor-pointer ${
                 activeCategory === 'all'
-                  ? 'bg-[#4E342E] text-white font-semibold'
-                  : 'bg-[#FAF9F6] text-[#6B625D] hover:text-[#1C1C1C]'
+                  ? 'bg-[#8B5E45] text-[#F5F0E9] font-semibold shadow-xs'
+                  : 'bg-[#151311] text-[#B7AAA0] hover:text-[#F5F0E9] border border-[#332A25]'
               }`}
             >
               All Categories ({menuItems.length})
@@ -1090,8 +1090,8 @@ function RestaurantDetailContent() {
                 onClick={() => setActiveCategory(cat.id)}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition cursor-pointer ${
                   activeCategory === cat.id
-                    ? 'bg-[#4E342E] text-white font-semibold'
-                    : 'bg-[#FAF9F6] text-[#6B625D] hover:text-[#1C1C1C]'
+                    ? 'bg-[#8B5E45] text-[#F5F0E9] font-semibold shadow-xs'
+                    : 'bg-[#151311] text-[#B7AAA0] hover:text-[#F5F0E9] border border-[#332A25]'
                 }`}
               >
                 {cat.name}
@@ -1108,56 +1108,56 @@ function RestaurantDetailContent() {
                 return (
                   <div
                     key={item.id}
-                    className={`p-4 rounded-2xl border transition-all flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center ${
+                    className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center ${
                       qty > 0 
-                        ? 'bg-[#FAF9F6] border-[#795548]/40 shadow-xs' 
-                        : 'bg-white border-[#E8E1DA]/80 hover:border-[#E8E1DA]'
-                    } ${!item.isAvailable ? 'opacity-60 bg-gray-50' : ''}`}
+                        ? 'bg-[#1C1917] border-[#8B5E45]/60 shadow-md ring-1 ring-[#8B5E45]/20' 
+                        : 'bg-[#1C1917] border-[#332A25] hover:border-[#54372D]'
+                    } ${!item.isAvailable ? 'opacity-50 bg-[#111111]' : ''}`}
                   >
                     {/* Image & Text */}
                     <div className="flex gap-4 items-start flex-1">
                       {item.imageUrl && (
-                        <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-100 shrink-0">
+                        <div className="w-16 h-16 rounded-xl overflow-hidden bg-[#111111] shrink-0 border border-[#332A25]">
                           <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
                         </div>
                       )}
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="font-serif font-bold text-base text-[#1C1C1C]">
+                          <h4 className="font-serif font-bold text-base text-[#F5F0E9]">
                             {item.name}
                           </h4>
                           {item.isVegetarian && (
-                            <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-semibold flex items-center gap-1 border border-emerald-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 inline-block"></span>
+                            <span className="px-2 py-0.5 rounded-md bg-[#132A1C] text-[#86EFAC] text-[10px] font-semibold flex items-center gap-1 border border-[#165B33]">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
                               Vegetarian
                             </span>
                           )}
                           {item.isNonVegetarian && (
-                            <span className="px-2 py-0.5 rounded-md bg-red-50 text-red-700 text-[10px] font-semibold flex items-center gap-1 border border-red-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-red-600 inline-block"></span>
+                            <span className="px-2 py-0.5 rounded-md bg-[#2E1212] text-[#FCA5A5] text-[10px] font-semibold flex items-center gap-1 border border-[#5E1E1E]">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-400 inline-block"></span>
                               Non-Veg
                             </span>
                           )}
                           {item.isGlutenFree && (
-                            <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 text-[10px] font-semibold">
+                            <span className="px-2 py-0.5 rounded-md bg-[#291F11] text-[#FDE68A] text-[10px] font-semibold border border-[#5E4018]">
                               Gluten-Free
                             </span>
                           )}
                           {!item.isAvailable && (
-                            <span className="px-2 py-0.5 rounded-md bg-red-100 text-red-700 text-[10px] font-bold">
+                            <span className="px-2 py-0.5 rounded-md bg-[#2E1212] text-[#FCA5A5] text-[10px] font-bold border border-[#5E1E1E]">
                               Sold Out
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-[#6B625D] mt-1 leading-relaxed">
+                        <p className="text-xs text-[#B7AAA0] mt-1 leading-relaxed">
                           {item.description}
                         </p>
                         {item.preparationNotes && (
-                          <p className="text-[11px] text-[#795548] mt-1 italic">
+                          <p className="text-[11px] text-[#C6A47E] mt-1 italic">
                             Note: {item.preparationNotes}
                           </p>
                         )}
-                        <div className="mt-2 font-semibold text-sm text-[#1C1C1C]">
+                        <div className="mt-2 font-semibold text-sm text-[#F5F0E9]">
                           ${item.price.toFixed(2)}
                         </div>
                       </div>
@@ -1166,32 +1166,32 @@ function RestaurantDetailContent() {
                     {/* Quantity Controls */}
                     <div className="shrink-0 self-end sm:self-center">
                       {!item.isAvailable ? (
-                        <span className="text-xs text-red-600 font-medium">Currently Unavailable</span>
+                        <span className="text-xs text-rose-400 font-medium">Currently Unavailable</span>
                       ) : qty === 0 ? (
                         <button
                           type="button"
                           onClick={() => updateQuantity(item.id, 1)}
-                          className="px-3.5 py-1.5 rounded-xl border border-[#795548] text-[#795548] hover:bg-[#795548] hover:text-white text-xs font-semibold transition cursor-pointer flex items-center gap-1"
+                          className="px-3.5 py-1.5 rounded-xl border border-[#8B5E45] text-[#C6A47E] hover:bg-[#8B5E45] hover:text-[#F5F0E9] text-xs font-semibold transition cursor-pointer flex items-center gap-1"
                         >
                           <Plus className="w-3.5 h-3.5" />
                           Add
                         </button>
                       ) : (
-                        <div className="flex items-center gap-2 bg-white border border-[#E8E1DA] rounded-xl p-1 shadow-xs">
+                        <div className="flex items-center gap-2 bg-[#151311] border border-[#332A25] rounded-xl p-1 shadow-xs">
                           <button
                             type="button"
                             onClick={() => updateQuantity(item.id, -1)}
-                            className="w-7 h-7 rounded-lg hover:bg-[#FAF9F6] text-[#4E342E] flex items-center justify-center transition cursor-pointer"
+                            className="w-7 h-7 rounded-lg hover:bg-[#38251F] text-[#F5F0E9] flex items-center justify-center transition cursor-pointer"
                           >
                             <Minus className="w-3.5 h-3.5" />
                           </button>
-                          <span className="w-6 text-center font-bold text-sm text-[#1C1C1C]">
+                          <span className="w-6 text-center font-bold text-sm text-[#F5F0E9]">
                             {qty}
                           </span>
                           <button
                             type="button"
                             onClick={() => updateQuantity(item.id, 1)}
-                            className="w-7 h-7 rounded-lg hover:bg-[#FAF9F6] text-[#4E342E] flex items-center justify-center transition cursor-pointer"
+                            className="w-7 h-7 rounded-lg hover:bg-[#38251F] text-[#F5F0E9] flex items-center justify-center transition cursor-pointer"
                           >
                             <Plus className="w-3.5 h-3.5" />
                           </button>
@@ -1217,52 +1217,52 @@ function RestaurantDetailContent() {
 
       {/* POPUP: EXISTING BOOKING CONFIRMATION MODAL */}
       {showDuplicateModal && activeBooking && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 border border-[#E8E1DA] shadow-2xl relative space-y-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-[#181513] rounded-3xl max-w-lg w-full p-6 sm:p-8 border border-[#332A25] shadow-2xl relative space-y-6">
             
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
-                <AlertCircle className="w-6 h-6 text-amber-700" />
+              <div className="w-12 h-12 rounded-2xl bg-[#38251F] text-[#C6A47E] flex items-center justify-center shrink-0 border border-[#54372D]">
+                <AlertCircle className="w-6 h-6 text-[#C6A47E]" />
               </div>
               <div className="flex-1">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md inline-block">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#C6A47E] bg-[#38251F] px-2 py-0.5 rounded-md inline-block border border-[#54372D]">
                   Active Booking Found
                 </span>
-                <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#1C1C1C] mt-1.5">
+                <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#F5F0E9] mt-1.5">
                   You already have a booking here!
                 </h3>
-                <p className="text-xs sm:text-sm text-[#6B625D] mt-1">
-                  There is currently an active reservation under your profile for <strong className="text-[#1C1C1C]">{restaurant.name}</strong>.
+                <p className="text-xs sm:text-sm text-[#B7AAA0] mt-1">
+                  There is currently an active reservation under your profile for <strong className="text-[#F5F0E9]">{restaurant.name}</strong>.
                 </p>
               </div>
             </div>
 
             {/* Existing Booking Summary Card */}
-            <div className="p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E1DA] text-xs space-y-2">
-              <div className="flex justify-between items-center border-b border-[#E8E1DA]/80 pb-2">
-                <span className="text-[#6B625D]">Reference:</span>
-                <span className="font-mono font-bold text-[#4E342E]">{activeBooking.bookingReference}</span>
+            <div className="p-4 rounded-2xl bg-[#151311] border border-[#332A25] text-xs space-y-2">
+              <div className="flex justify-between items-center border-b border-[#332A25] pb-2">
+                <span className="text-[#8D8178]">Reference:</span>
+                <span className="font-mono font-bold text-[#C6A47E]">{activeBooking.bookingReference}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-[#6B625D]">Existing Date & Time:</span>
-                <strong className="text-[#1C1C1C]">{activeBooking.reservationDate} at {activeBooking.startTime}</strong>
+                <span className="text-[#8D8178]">Existing Date & Time:</span>
+                <strong className="text-[#F5F0E9]">{activeBooking.reservationDate} at {activeBooking.startTime}</strong>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-[#6B625D]">Guests:</span>
-                <span className="text-[#1C1C1C] font-medium">{activeBooking.partySize} guests</span>
+                <span className="text-[#8D8178]">Guests:</span>
+                <span className="text-[#F5F0E9] font-medium">{activeBooking.partySize} guests</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-[#6B625D]">Status:</span>
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800">
+                <span className="text-[#8D8178]">Status:</span>
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-[#132A1C] text-[#86EFAC] border border-[#165B33]">
                   {activeBooking.status}
                 </span>
               </div>
             </div>
 
-            <div className="text-xs text-[#6B625D] leading-relaxed bg-[#F8F5F0] p-3 rounded-xl border border-[#E9DFD2]">
-              <strong className="text-[#3B2924]">Do you want to create a new additional booking?</strong>
-              <p className="mt-0.5">
-                Creating an additional reservation will allocate separate table capacity for <span className="text-[#3B2924] font-semibold">{visitDate} at {selectedSlot}</span>.
+            <div className="text-xs text-[#B7AAA0] leading-relaxed bg-[#1C1917] p-3 rounded-xl border border-[#332A25]">
+              <strong className="text-[#F5F0E9]">Do you want to create a new additional booking?</strong>
+              <p className="mt-0.5 text-[#8D8178]">
+                Creating an additional reservation will allocate separate table capacity for <span className="text-[#C6A47E] font-semibold">{visitDate} at {selectedSlot}</span>.
               </p>
             </div>
 
@@ -1272,20 +1272,20 @@ function RestaurantDetailContent() {
                 type="button"
                 onClick={executeBooking}
                 disabled={isSubmitting}
-                className="flex-1 py-3 px-4 rounded-xl bg-[#4E342E] hover:bg-[#795548] text-white text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                className="flex-1 py-3 px-4 rounded-xl bg-[#8B5E45] hover:bg-[#9E6C51] text-[#F5F0E9] text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 shadow-md"
               >
                 {isSubmitting ? 'Creating New Booking...' : 'Yes, Create New Booking'}
               </button>
               <Link
                 href="/my-bookings"
-                className="py-3 px-4 rounded-xl bg-[#FAF9F6] hover:bg-[#E8E1DA] text-[#1C1C1C] text-xs font-semibold border border-[#E8E1DA] text-center transition"
+                className="py-3 px-4 rounded-xl bg-[#151311] hover:bg-[#38251F] text-[#F5F0E9] text-xs font-semibold border border-[#332A25] text-center transition"
               >
                 View Existing in My Bookings
               </Link>
               <button
                 type="button"
                 onClick={() => setShowDuplicateModal(false)}
-                className="py-3 px-4 rounded-xl hover:bg-gray-100 text-[#6B625D] text-xs font-medium transition cursor-pointer"
+                className="py-3 px-4 rounded-xl hover:bg-[#151311] text-[#8D8178] hover:text-[#F5F0E9] text-xs font-medium transition cursor-pointer"
               >
                 Cancel
               </button>

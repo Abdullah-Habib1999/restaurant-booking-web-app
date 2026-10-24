@@ -129,13 +129,13 @@ export default function ReviewModal({
     isRequired: boolean = false
   ) => {
     return (
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-2 border-b border-[#E8E1DA]/60 last:border-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-2 border-b border-[#241E1A] last:border-0">
         <div>
-          <span className="text-xs font-semibold text-[#1C1C1C]">
-            {label} {isRequired && <span className="text-red-600">*</span>}
+          <span className="text-xs font-semibold text-[#F5F0E9]">
+            {label} {isRequired && <span className="text-rose-400">*</span>}
           </span>
           {!isRequired && (
-            <span className="text-[10px] text-[#795548] ml-1.5 font-medium">Optional</span>
+            <span className="text-[10px] text-[#C6A47E] ml-1.5 font-medium">Optional</span>
           )}
         </div>
         <div className="flex items-center gap-1.5">
@@ -152,8 +152,8 @@ export default function ReviewModal({
                 <Star
                   className={`w-5 h-5 ${
                     isFilled
-                      ? 'text-amber-500 fill-amber-500'
-                      : 'text-gray-300 hover:text-amber-300'
+                      ? 'text-[#C6A47E] fill-[#C6A47E]'
+                      : 'text-[#38251F] hover:text-[#C6A47E]/60'
                   }`}
                 />
               </button>
@@ -163,7 +163,7 @@ export default function ReviewModal({
             <button
               type="button"
               onClick={() => onChange(0)}
-              className="text-[10px] text-[#795548] hover:underline ml-1 cursor-pointer"
+              className="text-[10px] text-[#8D8178] hover:text-[#F5F0E9] ml-1 cursor-pointer"
             >
               Clear
             </button>
@@ -174,34 +174,34 @@ export default function ReviewModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
       <div 
-        className="relative bg-white rounded-3xl max-w-xl w-full border border-[#E8E1DA] shadow-2xl p-6 sm:p-8 space-y-6 animate-in fade-in zoom-in duration-200"
+        className="relative bg-[#181513] rounded-3xl max-w-xl w-full border border-[#332A25] shadow-2xl p-6 sm:p-8 space-y-6 animate-in fade-in zoom-in duration-200"
         role="dialog"
         aria-modal="true"
       >
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-[#E8E1DA] pb-4">
+        <div className="flex items-start justify-between border-b border-[#332A25] pb-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#142816] text-[#81C784] border border-[#234A28]">
                 Verified Dining Visit
               </span>
-              <span className="text-xs text-[#795548] font-mono font-medium">
+              <span className="text-xs text-[#C6A47E] font-mono font-medium">
                 Ref: {reservation.bookingReference}
               </span>
             </div>
-            <h2 className="font-serif text-2xl font-bold text-[#1C1C1C] mt-1.5">
+            <h2 className="font-serif text-2xl font-bold text-[#F5F0E9] mt-1.5">
               {isEditing ? 'Edit Your Experience' : 'Rate Your Dining Experience'}
             </h2>
-            <p className="text-xs text-[#6B625D] mt-0.5">
-              Visited <strong className="text-[#1C1C1C]">{reservation.restaurantName}</strong> on {reservation.reservationDate} ({reservation.partySize} guests).
+            <p className="text-xs text-[#B7AAA0] mt-0.5">
+              Visited <strong className="text-[#F5F0E9]">{reservation.restaurantName}</strong> on {reservation.reservationDate} ({reservation.partySize} guests).
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition cursor-pointer"
+            className="p-2 rounded-xl text-[#8D8178] hover:text-[#F5F0E9] hover:bg-[#1C1917] transition cursor-pointer"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
@@ -210,24 +210,24 @@ export default function ReviewModal({
 
         {/* Alerts */}
         {errorMsg && (
-          <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-800 flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+          <div className="p-3.5 rounded-xl bg-[#2B1515] border border-[#4D2323] text-xs text-rose-300 flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
             <span>{errorMsg}</span>
           </div>
         )}
 
         {successMsg && (
-          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <div className="p-3.5 rounded-xl bg-[#142816] border border-[#234A28] text-xs text-[#81C784] flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-[#81C784] shrink-0" />
             <span className="font-semibold">{successMsg}</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* 1. Overall Rating Hero Selection */}
-          <div className="p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E1DA] text-center space-y-2">
-            <label className="block text-xs font-bold uppercase tracking-wider text-[#4E342E]">
-              Overall Dining Rating <span className="text-red-600">*</span>
+          <div className="p-4 rounded-2xl bg-[#151311] border border-[#332A25] text-center space-y-2">
+            <label className="block text-xs font-bold uppercase tracking-wider text-[#C6A47E]">
+              Overall Dining Rating <span className="text-rose-400">*</span>
             </label>
             <div className="flex items-center justify-center gap-2 pt-1">
               {[1, 2, 3, 4, 5].map(star => {
@@ -244,15 +244,15 @@ export default function ReviewModal({
                     <Star
                       className={`w-8 h-8 ${
                         isFilled
-                          ? 'text-amber-500 fill-amber-500 drop-shadow-xs'
-                          : 'text-gray-300'
+                          ? 'text-[#C6A47E] fill-[#C6A47E] drop-shadow-xs'
+                          : 'text-[#38251F]'
                       }`}
                     />
                   </button>
                 );
               })}
             </div>
-            <div className="text-xs font-semibold text-[#795548]">
+            <div className="text-xs font-semibold text-[#C6A47E]">
               {overallRating === 5 && '★★★★★ Exceptional dining'}
               {overallRating === 4 && '★★★★ Very good experience'}
               {overallRating === 3 && '★★★ Average visit'}
@@ -262,8 +262,8 @@ export default function ReviewModal({
           </div>
 
           {/* 2. Detailed Dimension Ratings */}
-          <div className="space-y-1 bg-white p-3.5 rounded-2xl border border-[#E8E1DA]">
-            <span className="block text-[11px] font-bold uppercase tracking-wider text-[#795548] mb-1">
+          <div className="space-y-1 bg-[#1C1917] p-4 rounded-2xl border border-[#332A25]">
+            <span className="block text-[11px] font-bold uppercase tracking-wider text-[#C6A47E] mb-1">
               Detailed Experience Ratings
             </span>
             {renderRatingStars('Food Quality & Taste', foodRating, (val) => setFoodRating(val || undefined))}
@@ -274,8 +274,8 @@ export default function ReviewModal({
 
           {/* 3. Feedback Tags */}
           <div className="space-y-2">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-[#6B625D]">
-              Visit Highlights & Tags <span className="text-[10px] font-normal lowercase">(optional)</span>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-[#C6A47E]">
+              Visit Highlights & Tags <span className="text-[10px] font-normal lowercase text-[#8D8178]">(optional)</span>
             </label>
             <div className="flex flex-wrap gap-2">
               {VISIT_TAGS.map(tag => {
@@ -287,8 +287,8 @@ export default function ReviewModal({
                     onClick={() => toggleTag(tag)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
                       isSelected
-                        ? 'bg-[#4E342E] text-white shadow-xs'
-                        : 'bg-[#FAF9F6] border border-[#E8E1DA] text-[#6B625D] hover:bg-[#E8E1DA]/50'
+                        ? 'bg-[#8B5E45] border border-[#C6A47E] text-[#F5F0E9] shadow-xs'
+                        : 'bg-[#151311] border border-[#332A25] text-[#B7AAA0] hover:text-[#F5F0E9] hover:border-[#54372D]'
                     }`}
                   >
                     {tag}
@@ -300,8 +300,8 @@ export default function ReviewModal({
 
           {/* 4. Written Comments */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-[#6B625D]">
-              Written Review <span className="text-[10px] font-normal lowercase">(optional)</span>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-[#C6A47E]">
+              Written Review <span className="text-[10px] font-normal lowercase text-[#8D8178]">(optional)</span>
             </label>
             <textarea
               rows={3}
@@ -309,27 +309,27 @@ export default function ReviewModal({
               onChange={(e) => setComment(e.target.value)}
               placeholder="Tell fellow diners about your meal, favorite dishes, or the hospitality..."
               maxLength={1000}
-              className="w-full p-3 rounded-xl border border-[#E8E1DA] text-xs text-[#1C1C1C] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#795548]/30 bg-[#FAF9F6] resize-none"
+              className="w-full p-3 rounded-xl border border-[#332A25] text-xs text-[#F5F0E9] placeholder:text-[#8D8178] focus:outline-none focus:ring-2 focus:ring-[#8B5E45]/40 bg-[#151311] resize-none"
             />
-            <div className="text-right text-[10px] text-[#795548]">
+            <div className="text-right text-[10px] text-[#8D8178]">
               {comment.length}/1000 characters
             </div>
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E8E1DA]">
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#332A25]">
             <button
               type="button"
               onClick={onClose}
               disabled={submitting}
-              className="px-5 py-2.5 rounded-xl text-xs font-semibold text-[#6B625D] hover:bg-gray-100 transition cursor-pointer"
+              className="px-5 py-2.5 rounded-xl text-xs font-semibold text-[#B7AAA0] hover:text-[#F5F0E9] hover:bg-[#1C1917] transition cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-6 py-2.5 rounded-xl bg-[#4E342E] hover:bg-[#795548] text-white text-xs font-bold transition shadow-xs disabled:opacity-50 cursor-pointer flex items-center gap-2"
+              className="px-6 py-2.5 rounded-xl bg-[#8B5E45] hover:bg-[#9E6C51] text-[#F5F0E9] text-xs font-bold transition shadow-xs disabled:opacity-50 cursor-pointer flex items-center gap-2 border border-[#8B5E45]/80"
             >
               {submitting ? 'Submitting...' : isEditing ? 'Save Changes' : 'Submit Verified Review'}
             </button>

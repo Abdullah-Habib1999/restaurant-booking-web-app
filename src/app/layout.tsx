@@ -18,13 +18,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="bg-[#FAF9F6] text-[#1C1C1C] min-h-screen flex flex-col selection:bg-[#795548]/20 selection:text-[#4E342E]">
+      <body className="bg-[#0B0B0B] text-[#F5F0E9] min-h-screen flex flex-col selection:bg-[#8B5E45]/40 selection:text-[#F5F0E9]">
         <AuthProvider>
-          <Suspense fallback={<header className="h-20 bg-[#FAF9F6] border-b border-[#E8E1DA]" />}>
+          <Suspense fallback={<header className="h-20 bg-[#0B0B0B] border-b border-[#332A25]" />}>
             <Navigation />
           </Suspense>
           <main className="flex-1">
-            <Suspense fallback={<div className="p-8 text-center text-xs text-[#6B625D]">Loading experience...</div>}>
+            <Suspense fallback={<div className="p-8 text-center text-xs text-[#8D8178]">Loading experience...</div>}>
               {children}
             </Suspense>
           </main>

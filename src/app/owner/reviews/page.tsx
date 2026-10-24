@@ -125,19 +125,19 @@ export default function OwnerReviewsPage() {
       {/* Title & Guidelines */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-[#795548]">
+          <span className="text-xs font-bold uppercase tracking-wider text-[#C6A47E]">
             Merchant Reputation Console
           </span>
-          <h1 className="font-serif text-2xl sm:text-3xl font-bold text-[#1C1C1C] mt-0.5">
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold text-[#F5F0E9] mt-0.5">
             Customer Ratings & Reviews
           </h1>
-          <p className="text-sm text-[#6B625D] mt-1">
-            Verified dining feedback for <strong className="text-[#1C1C1C]">{restaurant?.name || 'Your Restaurant'}</strong>. Reviews are guaranteed from completed visits.
+          <p className="text-sm text-[#B7AAA0] mt-1">
+            Verified dining feedback for <strong className="text-[#F5F0E9]">{restaurant?.name || 'Your Restaurant'}</strong>. Reviews are guaranteed from completed visits.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 text-xs font-semibold flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-amber-700" />
+          <span className="px-3 py-1.5 rounded-xl bg-[#291F11] text-[#FDE68A] border border-[#5E4018] text-xs font-semibold flex items-center gap-1.5">
+            <ShieldCheck className="w-4 h-4 text-[#C6A47E]" />
             Fairness Protected: Unalterable Reviews
           </span>
         </div>
@@ -146,8 +146,8 @@ export default function OwnerReviewsPage() {
       {notification && (
         <div className={`p-4 rounded-xl text-xs font-semibold border flex items-center justify-between ${
           notification.type === 'success' 
-            ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
-            : 'bg-red-50 border-red-200 text-red-800'
+            ? 'bg-[#132A1C] border-[#22543D] text-[#86EFAC]' 
+            : 'bg-[#2E1212] border-[#7F1D1D] text-[#FCA5A5]'
         }`}>
           <span>{notification.text}</span>
           <button onClick={() => setNotification(null)} className="underline cursor-pointer">Dismiss</button>
@@ -158,56 +158,56 @@ export default function OwnerReviewsPage() {
       {stats && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {/* Average Overall */}
-          <div className="p-5 rounded-2xl bg-white border border-[#E8E1DA] shadow-xs space-y-1">
-            <div className="flex items-center justify-between text-[#6B625D]">
+          <div className="p-5 rounded-2xl bg-[#181513] border border-[#332A25] shadow-sm space-y-1">
+            <div className="flex items-center justify-between text-[#8D8178]">
               <span className="text-xs font-bold uppercase tracking-wider">Overall Rating</span>
-              <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+              <Star className="w-4 h-4 text-[#C6A47E] fill-[#C6A47E]" />
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-serif font-bold text-[#1C1C1C]">
+              <span className="text-3xl font-serif font-bold text-[#F5F0E9]">
                 {stats.averageRating > 0 ? stats.averageRating.toFixed(1) : '—'}
               </span>
-              <span className="text-xs text-[#6B625D]">/ 5.0</span>
+              <span className="text-xs text-[#8D8178]">/ 5.0</span>
             </div>
-            <p className="text-[11px] text-[#795548]">
+            <p className="text-[11px] text-[#C6A47E]">
               From {stats.reviewCount} verified dining {stats.reviewCount === 1 ? 'experience' : 'experiences'}
             </p>
           </div>
 
           {/* Food Quality */}
-          <div className="p-5 rounded-2xl bg-white border border-[#E8E1DA] shadow-xs space-y-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#6B625D]">Food Quality</span>
+          <div className="p-5 rounded-2xl bg-[#181513] border border-[#332A25] shadow-sm space-y-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#8D8178]">Food Quality</span>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-serif font-bold text-[#1C1C1C]">
+              <span className="text-3xl font-serif font-bold text-[#F5F0E9]">
                 {stats.avgFood ? stats.avgFood.toFixed(1) : '—'}
               </span>
-              <span className="text-xs text-[#6B625D]">/ 5.0</span>
+              <span className="text-xs text-[#8D8178]">/ 5.0</span>
             </div>
-            <p className="text-[11px] text-[#795548]">Kitchen craftsmanship score</p>
+            <p className="text-[11px] text-[#C6A47E]">Kitchen craftsmanship score</p>
           </div>
 
           {/* Service & Hospitality */}
-          <div className="p-5 rounded-2xl bg-white border border-[#E8E1DA] shadow-xs space-y-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#6B625D]">Service Hospitality</span>
+          <div className="p-5 rounded-2xl bg-[#181513] border border-[#332A25] shadow-sm space-y-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#8D8178]">Service Hospitality</span>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-serif font-bold text-[#1C1C1C]">
+              <span className="text-3xl font-serif font-bold text-[#F5F0E9]">
                 {stats.avgService ? stats.avgService.toFixed(1) : '—'}
               </span>
-              <span className="text-xs text-[#6B625D]">/ 5.0</span>
+              <span className="text-xs text-[#8D8178]">/ 5.0</span>
             </div>
-            <p className="text-[11px] text-[#795548]">Staff attentiveness & speed</p>
+            <p className="text-[11px] text-[#C6A47E]">Staff attentiveness & speed</p>
           </div>
 
           {/* Ambience & Atmosphere */}
-          <div className="p-5 rounded-2xl bg-white border border-[#E8E1DA] shadow-xs space-y-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#6B625D]">Ambience & Value</span>
+          <div className="p-5 rounded-2xl bg-[#181513] border border-[#332A25] shadow-sm space-y-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#8D8178]">Ambience & Value</span>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-serif font-bold text-[#1C1C1C]">
+              <span className="text-3xl font-serif font-bold text-[#F5F0E9]">
                 {stats.avgAmbience ? stats.avgAmbience.toFixed(1) : '—'}
               </span>
-              <span className="text-xs text-[#6B625D]">/ 5.0</span>
+              <span className="text-xs text-[#8D8178]">/ 5.0</span>
             </div>
-            <p className="text-[11px] text-[#795548]">
+            <p className="text-[11px] text-[#C6A47E]">
               Value: {stats.avgValue ? `${stats.avgValue.toFixed(1)}/5` : '—'}
             </p>
           </div>
@@ -215,11 +215,11 @@ export default function OwnerReviewsPage() {
       )}
 
       {/* FILTER & SORT BAR */}
-      <div className="bg-white rounded-2xl border border-[#E8E1DA] p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="bg-[#181513] rounded-2xl border border-[#332A25] p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
         
         {/* Star Filter */}
         <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto">
-          <span className="text-xs font-bold text-[#6B625D] shrink-0">Filter:</span>
+          <span className="text-xs font-bold text-[#8D8178] shrink-0">Filter:</span>
           {['all', '5', '4', '3', '2', '1'].map(filterVal => (
             <button
               key={filterVal}
@@ -227,8 +227,8 @@ export default function OwnerReviewsPage() {
               onClick={() => setStarFilter(filterVal)}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer shrink-0 ${
                 starFilter === filterVal
-                  ? 'bg-[#3B2924] text-white shadow-xs'
-                  : 'bg-[#FAF9F6] border border-[#E8E1DA] text-[#6B625D] hover:bg-gray-100'
+                  ? 'bg-[#8B5E45] text-[#F5F0E9] shadow-sm'
+                  : 'bg-[#151311] border border-[#332A25] text-[#8D8178] hover:text-[#F5F0E9]'
               }`}
             >
               {filterVal === 'all' ? 'All Reviews' : `${filterVal} Stars`}
@@ -238,11 +238,11 @@ export default function OwnerReviewsPage() {
 
         {/* Sort selector */}
         <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-          <ArrowUpDown className="w-3.5 h-3.5 text-[#795548]" />
+          <ArrowUpDown className="w-3.5 h-3.5 text-[#C6A47E]" />
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as any)}
-            className="px-3 py-1.5 rounded-xl border border-[#E8E1DA] text-xs font-semibold text-[#1C1C1C] bg-[#FAF9F6] cursor-pointer"
+            className="px-3 py-1.5 rounded-xl border border-[#332A25] text-xs font-semibold text-[#F5F0E9] bg-[#151311] cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#8B5E45]"
           >
             <option value="recent">Most Recent First</option>
             <option value="highest">Highest Rating First</option>
@@ -253,42 +253,42 @@ export default function OwnerReviewsPage() {
       </div>
 
       {/* REVIEWS LIST */}
-      <div className="bg-white rounded-3xl border border-[#E8E1DA] overflow-hidden shadow-xs">
+      <div className="bg-[#181513] rounded-3xl border border-[#332A25] overflow-hidden shadow-sm">
         
         {loading ? (
-          <div className="p-12 text-center text-xs text-[#6B625D]">Loading verified dining reviews...</div>
+          <div className="p-12 text-center text-xs text-[#8D8178]">Loading verified dining reviews...</div>
         ) : filteredReviews.length === 0 ? (
-          <div className="p-12 text-center text-xs text-[#6B625D] space-y-2">
-            <MessageSquare className="w-8 h-8 text-[#795548]/50 mx-auto" />
-            <p className="font-semibold text-sm text-[#1C1C1C]">No reviews match your selected filter.</p>
+          <div className="p-12 text-center text-xs text-[#8D8178] space-y-2">
+            <MessageSquare className="w-8 h-8 text-[#8B5E45]/50 mx-auto" />
+            <p className="font-semibold text-sm text-[#F5F0E9]">No reviews match your selected filter.</p>
             <p>Customers will be prompted to leave a review after their dining reservation is marked Completed.</p>
           </div>
         ) : (
-          <div className="divide-y divide-[#E8E1DA]/60">
+          <div className="divide-y divide-[#332A25]">
             {filteredReviews.map(review => (
-              <div key={review.id} className="p-6 space-y-4 hover:bg-[#FAF9F6]/40 transition">
+              <div key={review.id} className="p-6 space-y-4 hover:bg-[#1C1917]/50 transition">
                 
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-[#4E342E] text-white flex items-center justify-center font-bold text-sm">
+                    <div className="w-10 h-10 rounded-full bg-[#38251F] text-[#F5F0E9] flex items-center justify-center font-bold text-sm">
                       {review.customerName ? review.customerName[0].toUpperCase() : 'G'}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <strong className="font-serif text-base text-[#1C1C1C]">
+                        <strong className="font-serif text-base text-[#F5F0E9]">
                           {review.customerName}
                         </strong>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Verified Visit
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#132A1C] text-[#86EFAC] border border-[#22543D] flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-[#86EFAC]" /> Verified Visit
                         </span>
                         {review.isReported && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#291F11] text-[#FDE68A] border border-[#5E4018]">
                             Flagged for Review
                           </span>
                         )}
                       </div>
-                      <div className="text-xs text-[#6B625D] mt-0.5 flex flex-wrap items-center gap-2">
+                      <div className="text-xs text-[#8D8178] mt-0.5 flex flex-wrap items-center gap-2">
                         <span>Reviewed {new Date(review.createdAt).toLocaleDateString()}</span>
                         {review.visitDate && <span>• Visited {review.visitDate}</span>}
                         {review.partySize && <span>• {review.partySize} Guests</span>}
@@ -298,9 +298,9 @@ export default function OwnerReviewsPage() {
 
                   {/* Rating Stars & Quick Flag */}
                   <div className="flex items-center gap-3 self-start sm:self-center">
-                    <div className="flex items-center gap-1 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+                    <div className="flex items-center gap-1 bg-[#151311] px-3 py-1 rounded-full border border-[#332A25]">
                       {renderStars(review.overallRating, 5, 'w-4 h-4')}
-                      <span className="text-xs font-bold text-amber-900 ml-1">
+                      <span className="text-xs font-bold text-[#C6A47E] ml-1">
                         {review.overallRating}.0
                       </span>
                     </div>
@@ -308,7 +308,7 @@ export default function OwnerReviewsPage() {
                     <button
                       type="button"
                       onClick={() => setReportingReviewId(review.id)}
-                      className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg transition cursor-pointer"
+                      className="p-1.5 text-[#8D8178] hover:text-red-400 rounded-lg transition cursor-pointer"
                       title="Report abusive review to TableReserve Trust & Safety"
                     >
                       <Flag className="w-4 h-4" />
@@ -318,17 +318,17 @@ export default function OwnerReviewsPage() {
 
                 {/* Subcategory Ratings */}
                 {(review.foodRating || review.serviceRating || review.ambienceRating || review.valueRating) && (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2.5 rounded-xl bg-[#FAF9F6] text-xs text-[#6B625D]">
-                    {review.foodRating && <div>Food Quality: <strong className="text-[#1C1C1C]">{review.foodRating}/5</strong></div>}
-                    {review.serviceRating && <div>Service: <strong className="text-[#1C1C1C]">{review.serviceRating}/5</strong></div>}
-                    {review.ambienceRating && <div>Ambience: <strong className="text-[#1C1C1C]">{review.ambienceRating}/5</strong></div>}
-                    {review.valueRating && <div>Value: <strong className="text-[#1C1C1C]">{review.valueRating}/5</strong></div>}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2.5 rounded-xl bg-[#151311] border border-[#332A25] text-xs text-[#B7AAA0]">
+                    {review.foodRating && <div>Food Quality: <strong className="text-[#F5F0E9]">{review.foodRating}/5</strong></div>}
+                    {review.serviceRating && <div>Service: <strong className="text-[#F5F0E9]">{review.serviceRating}/5</strong></div>}
+                    {review.ambienceRating && <div>Ambience: <strong className="text-[#F5F0E9]">{review.ambienceRating}/5</strong></div>}
+                    {review.valueRating && <div>Value: <strong className="text-[#F5F0E9]">{review.valueRating}/5</strong></div>}
                   </div>
                 )}
 
                 {/* Comment */}
                 {review.comment && (
-                  <p className="text-sm text-[#1C1C1C] leading-relaxed whitespace-pre-line bg-white p-3 rounded-xl border border-[#E8E1DA]/60">
+                  <p className="text-sm text-[#F5F0E9] leading-relaxed whitespace-pre-line bg-[#151311] p-3.5 rounded-xl border border-[#332A25]">
                     "{review.comment}"
                   </p>
                 )}
@@ -339,7 +339,7 @@ export default function OwnerReviewsPage() {
                     {review.tags.map(tag => (
                       <span
                         key={tag}
-                        className="px-2.5 py-1 rounded-lg bg-[#FAF9F6] border border-[#E8E1DA] text-[11px] font-medium text-[#4E342E]"
+                        className="px-2.5 py-1 rounded-lg bg-[#151311] border border-[#332A25] text-[11px] font-medium text-[#C6A47E]"
                       >
                         #{tag}
                       </span>
@@ -349,15 +349,15 @@ export default function OwnerReviewsPage() {
 
                 {/* Public Owner Response Section */}
                 {review.ownerResponse ? (
-                  <div className="p-4 rounded-2xl bg-[#F8F5F0] border-l-4 border-[#795548] border-t border-r border-b border-[#E8E1DA] space-y-1.5">
+                  <div className="p-4 rounded-2xl bg-[#151311] border-l-4 border-[#8B5E45] border-t border-r border-b border-[#332A25] space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
-                      <strong className="text-[#4E342E] font-serif flex items-center gap-1.5">
-                        <CornerDownRight className="w-3.5 h-3.5 text-[#795548]" />
+                      <strong className="text-[#C6A47E] font-serif flex items-center gap-1.5">
+                        <CornerDownRight className="w-3.5 h-3.5 text-[#8B5E45]" />
                         Your Public Response
                       </strong>
                       <div className="flex items-center gap-2">
                         {review.ownerRespondedAt && (
-                          <span className="text-[11px] text-[#795548]">
+                          <span className="text-[11px] text-[#8D8178]">
                             {new Date(review.ownerRespondedAt).toLocaleDateString()}
                           </span>
                         )}
@@ -367,13 +367,13 @@ export default function OwnerReviewsPage() {
                             setRespondingReviewId(review.id);
                             setResponseText(review.ownerResponse || '');
                           }}
-                          className="text-xs text-[#795548] hover:underline font-semibold cursor-pointer"
+                          className="text-xs text-[#C6A47E] hover:underline font-semibold cursor-pointer"
                         >
                           Update Response
                         </button>
                       </div>
                     </div>
-                    <p className="text-xs text-[#1C1C1C] leading-relaxed">
+                    <p className="text-xs text-[#B7AAA0] leading-relaxed">
                       {review.ownerResponse}
                     </p>
                   </div>
@@ -386,7 +386,7 @@ export default function OwnerReviewsPage() {
                           setRespondingReviewId(review.id);
                           setResponseText('');
                         }}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#795548] text-[#795548] hover:bg-[#795548] hover:text-white text-xs font-semibold transition cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#8B5E45] text-[#C6A47E] hover:bg-[#8B5E45] hover:text-[#F5F0E9] text-xs font-semibold transition cursor-pointer"
                       >
                         <MessageSquare className="w-3.5 h-3.5" />
                         Respond Publicly
@@ -397,19 +397,19 @@ export default function OwnerReviewsPage() {
 
                 {/* Inline Response Form */}
                 {respondingReviewId === review.id && (
-                  <div className="p-4 rounded-2xl bg-[#FAF9F6] border border-[#E8E1DA] space-y-3">
+                  <div className="p-4 rounded-2xl bg-[#151311] border border-[#332A25] space-y-3">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-[#4E342E] uppercase tracking-wider">
+                      <label className="text-xs font-bold text-[#C6A47E] uppercase tracking-wider">
                         Public Owner Response to {review.customerName}
                       </label>
-                      <span className="text-[11px] text-[#795548]">Visible to all diners on restaurant profile</span>
+                      <span className="text-[11px] text-[#8D8178]">Visible to all diners on restaurant profile</span>
                     </div>
                     <textarea
                       rows={3}
                       value={responseText}
                       onChange={(e) => setResponseText(e.target.value)}
                       placeholder="Thank the diner for their visit, address constructive feedback, or invite them back..."
-                      className="w-full p-3 rounded-xl border border-[#E8E1DA] text-xs text-[#1C1C1C] focus:outline-none focus:ring-2 focus:ring-[#795548]/30 bg-white resize-none"
+                      className="w-full p-3 rounded-xl border border-[#332A25] text-xs text-[#F5F0E9] focus:outline-none focus:ring-1 focus:ring-[#8B5E45] bg-[#181513] placeholder-[#8D8178] resize-none"
                     />
                     <div className="flex justify-end gap-2">
                       <button
@@ -418,7 +418,7 @@ export default function OwnerReviewsPage() {
                           setRespondingReviewId(null);
                           setResponseText('');
                         }}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold text-[#6B625D] hover:bg-gray-100"
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold text-[#8D8178] hover:text-[#F5F0E9]"
                       >
                         Cancel
                       </button>
@@ -426,7 +426,7 @@ export default function OwnerReviewsPage() {
                         type="button"
                         onClick={() => handleSendResponse(review.id)}
                         disabled={submittingResponse || !responseText.trim()}
-                        className="px-4 py-1.5 rounded-xl bg-[#4E342E] hover:bg-[#795548] text-white text-xs font-bold shadow-xs disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+                        className="px-4 py-1.5 rounded-xl bg-[#8B5E45] hover:bg-[#9E6C51] text-[#F5F0E9] text-xs font-bold shadow-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
                       >
                         <Send className="w-3.5 h-3.5" />
                         {submittingResponse ? 'Publishing...' : 'Publish Response'}
@@ -444,13 +444,13 @@ export default function OwnerReviewsPage() {
 
       {/* REPORT / MODERATION MODAL */}
       {reportingReviewId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 border border-[#E8E1DA] shadow-xl space-y-4">
-            <h3 className="font-serif text-lg font-bold text-[#1C1C1C] flex items-center gap-2">
-              <Flag className="w-4 h-4 text-red-600" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#181513] rounded-3xl max-w-md w-full p-6 border border-[#332A25] shadow-2xl space-y-4">
+            <h3 className="font-serif text-lg font-bold text-[#F5F0E9] flex items-center gap-2">
+              <Flag className="w-4 h-4 text-red-400" />
               Report Review for Moderation
             </h3>
-            <p className="text-xs text-[#6B625D]">
+            <p className="text-xs text-[#B7AAA0]">
               Restaurant owners cannot delete or modify customer reviews directly. You may report inappropriate or abusive content to platform moderation.
             </p>
 
@@ -461,7 +461,7 @@ export default function OwnerReviewsPage() {
                 onChange={(e) => setReportReason(e.target.value)}
                 placeholder="Describe why this review violates platform terms (e.g. extortion, hate speech, inappropriate content)..."
                 required
-                className="w-full p-3 rounded-xl border border-[#E8E1DA] text-xs focus:outline-none focus:ring-2 focus:ring-[#795548]/30 bg-[#FAF9F6] resize-none"
+                className="w-full p-3 rounded-xl border border-[#332A25] text-xs text-[#F5F0E9] placeholder-[#8D8178] focus:outline-none focus:ring-1 focus:ring-[#8B5E45] bg-[#151311] resize-none"
               />
               <div className="flex justify-end gap-2">
                 <button
@@ -470,14 +470,14 @@ export default function OwnerReviewsPage() {
                     setReportingReviewId(null);
                     setReportReason('');
                   }}
-                  className="px-4 py-2 rounded-xl text-xs text-[#6B625D] hover:bg-gray-100 font-semibold"
+                  className="px-4 py-2 rounded-xl text-xs text-[#8D8178] hover:text-[#F5F0E9] font-semibold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingReport}
-                  className="px-4 py-2 rounded-xl bg-red-700 hover:bg-red-800 text-white text-xs font-semibold shadow-xs"
+                  className="px-4 py-2 rounded-xl bg-red-800 hover:bg-red-700 text-white text-xs font-semibold shadow-sm cursor-pointer"
                 >
                   {submittingReport ? 'Reporting...' : 'Submit to Moderation'}
                 </button>

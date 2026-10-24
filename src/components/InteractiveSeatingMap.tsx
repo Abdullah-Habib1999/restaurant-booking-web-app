@@ -132,33 +132,33 @@ export default function InteractiveSeatingMap({
   return (
     <div 
       ref={containerRef}
-      className="bg-[#FAF9F6] rounded-3xl border border-[#E6DDD3] p-3.5 sm:p-6 shadow-sm flex flex-col space-y-3.5 select-none w-full max-w-full overflow-hidden"
+      className="bg-[#181513] rounded-3xl border border-[#332A25] p-3.5 sm:p-6 shadow-xl shadow-black/50 flex flex-col space-y-3.5 select-none w-full max-w-full overflow-hidden"
     >
       
       {/* MAP HEADER & CONTROLS */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-[#E6DDD3] pb-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-[#332A25] pb-3">
         <div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-[#795548] animate-pulse"></span>
-            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-[#795548]">
+            <span className="w-2 h-2 rounded-full bg-[#C6A47E] animate-pulse"></span>
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-[#C6A47E]">
               Interactive Floor Plan • Cinema-Style Seating
             </span>
           </div>
-          <h3 className="font-serif text-base sm:text-lg font-bold text-[#201B18] mt-0.5">
+          <h3 className="font-serif text-base sm:text-lg font-bold text-[#F5F0E9] mt-0.5">
             {restaurantName} Seating Layout
           </h3>
         </div>
 
         {/* View mode toggle & Zoom buttons */}
         <div className="flex items-center gap-1.5 self-start sm:self-auto flex-wrap">
-          <div className="flex items-center rounded-xl bg-white border border-[#E6DDD3] p-0.5 sm:p-1 shadow-2xs">
+          <div className="flex items-center rounded-xl bg-[#151311] border border-[#332A25] p-0.5 sm:p-1 shadow-xs">
             <button
               type="button"
               onClick={() => setViewMode('isometric')}
               className={`px-2 sm:px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
                 viewMode === 'isometric' 
-                  ? 'bg-[#3B2924] text-white shadow-2xs' 
-                  : 'text-[#776B63] hover:text-[#201B18]'
+                  ? 'bg-[#8B5E45] text-[#F5F0E9] shadow-xs' 
+                  : 'text-[#B7AAA0] hover:text-[#F5F0E9]'
               }`}
             >
               3D View
@@ -168,19 +168,19 @@ export default function InteractiveSeatingMap({
               onClick={() => setViewMode('topDown')}
               className={`px-2 sm:px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
                 viewMode === 'topDown' 
-                  ? 'bg-[#3B2924] text-white shadow-2xs' 
-                  : 'text-[#776B63] hover:text-[#201B18]'
+                  ? 'bg-[#8B5E45] text-[#F5F0E9] shadow-xs' 
+                  : 'text-[#B7AAA0] hover:text-[#F5F0E9]'
               }`}
             >
               2D Plan
             </button>
           </div>
 
-          <div className="flex items-center rounded-xl bg-white border border-[#E6DDD3] p-0.5 sm:p-1 shadow-2xs">
+          <div className="flex items-center rounded-xl bg-[#151311] border border-[#332A25] p-0.5 sm:p-1 shadow-xs">
             <button
               type="button"
               onClick={handleZoomIn}
-              className="p-1.5 rounded-lg text-[#776B63] hover:text-[#201B18] hover:bg-[#F8F5F0] transition cursor-pointer"
+              className="p-1.5 rounded-lg text-[#B7AAA0] hover:text-[#F5F0E9] hover:bg-[#1C1917] transition cursor-pointer"
               title="Zoom In"
               aria-label="Zoom In"
             >
@@ -189,7 +189,7 @@ export default function InteractiveSeatingMap({
             <button
               type="button"
               onClick={handleZoomOut}
-              className="p-1.5 rounded-lg text-[#776B63] hover:text-[#201B18] hover:bg-[#F8F5F0] transition cursor-pointer"
+              className="p-1.5 rounded-lg text-[#B7AAA0] hover:text-[#F5F0E9] hover:bg-[#1C1917] transition cursor-pointer"
               title="Zoom Out"
               aria-label="Zoom Out"
             >
@@ -198,7 +198,7 @@ export default function InteractiveSeatingMap({
             <button
               type="button"
               onClick={handleResetView}
-              className="p-1.5 rounded-lg text-[#776B63] hover:text-[#201B18] hover:bg-[#F8F5F0] transition cursor-pointer"
+              className="p-1.5 rounded-lg text-[#B7AAA0] hover:text-[#F5F0E9] hover:bg-[#1C1917] transition cursor-pointer"
               title="Reset View"
               aria-label="Reset View"
             >
@@ -209,30 +209,30 @@ export default function InteractiveSeatingMap({
       </div>
 
       {/* SEATING COLOR LEGEND */}
-      <div className="flex items-center justify-start sm:justify-between flex-wrap gap-x-3 gap-y-1.5 py-2 px-3 rounded-2xl bg-white border border-[#E6DDD3] text-[11px] shadow-2xs">
+      <div className="flex items-center justify-start sm:justify-between flex-wrap gap-x-3 gap-y-1.5 py-2 px-3.5 rounded-2xl bg-[#151311] border border-[#332A25] text-[11px] shadow-xs">
         <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-md bg-[#EFEBE4] border border-[#C5BAAF] inline-block shadow-2xs"></span>
-          <span className="text-[#6B625D] font-medium">Available</span>
+          <span className="w-3 h-3 rounded-md bg-[#EFEBE4] border border-[#C5BAAF] inline-block shadow-xs"></span>
+          <span className="text-[#B7AAA0] font-medium">Available</span>
         </div>
 
         <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-md bg-[#3B2924] border border-[#201B18] inline-block ring-2 ring-[#795548]/40 shadow-xs"></span>
-          <span className="text-[#201B18] font-bold">Selected</span>
+          <span className="w-3 h-3 rounded-md bg-[#8B5E45] border border-[#C6A47E] inline-block ring-2 ring-[#C6A47E]/40 shadow-xs"></span>
+          <span className="text-[#F5F0E9] font-bold">Selected</span>
         </div>
 
         <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-md bg-[#4A433F] border border-[#332D29] inline-block"></span>
-          <span className="text-[#6B625D] font-medium">Booked</span>
+          <span className="w-3 h-3 rounded-md bg-[#282828] border border-[#444444] inline-block"></span>
+          <span className="text-[#8D8178] font-medium">Booked</span>
         </div>
 
         <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-md bg-amber-400 border border-amber-600 inline-block"></span>
-          <span className="text-[#6B625D] font-medium">Held</span>
+          <span className="w-3 h-3 rounded-md bg-amber-500 border border-amber-400 inline-block"></span>
+          <span className="text-[#B7AAA0] font-medium">Held</span>
         </div>
 
         <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-md bg-gray-300 border border-gray-400 inline-block text-gray-500 text-[8px] flex items-center justify-center">✕</span>
-          <span className="text-[#6B625D] font-medium">Unavailable</span>
+          <span className="w-3 h-3 rounded-md bg-[#1C1917] border border-[#332A25] inline-block text-[#666] text-[8px] flex items-center justify-center">✕</span>
+          <span className="text-[#8D8178] font-medium">Unavailable</span>
         </div>
       </div>
 
@@ -245,17 +245,17 @@ export default function InteractiveSeatingMap({
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className="relative w-full h-[400px] xs:h-[440px] sm:h-[520px] rounded-3xl bg-white border border-[#E6DDD3] overflow-hidden shadow-inner flex items-center justify-center cursor-grab active:cursor-grabbing touch-none"
+        className="relative w-full h-[400px] xs:h-[440px] sm:h-[520px] rounded-3xl bg-[#111111] border border-[#332A25] overflow-hidden shadow-inner flex items-center justify-center cursor-grab active:cursor-grabbing touch-none"
       >
         
         {/* Subtle grid background to simulate hardwood or architectural tiles */}
         <div 
-          className="absolute inset-0 opacity-40 pointer-events-none"
+          className="absolute inset-0 opacity-30 pointer-events-none"
           style={{
             backgroundImage: `
-              radial-gradient(#D7CCC8 1px, transparent 1px),
-              linear-gradient(to right, #F5EFEB 1px, transparent 1px),
-              linear-gradient(to bottom, #F5EFEB 1px, transparent 1px)
+              radial-gradient(#332A25 1.5px, transparent 1.5px),
+              linear-gradient(to right, #1C1917 1px, transparent 1px),
+              linear-gradient(to bottom, #1C1917 1px, transparent 1px)
             `,
             backgroundSize: '24px 24px'
           }}
@@ -263,26 +263,22 @@ export default function InteractiveSeatingMap({
 
         {/* Loading Overlay */}
         {isLoading && (
-          <div className="absolute inset-0 z-30 bg-white/70 backdrop-blur-2xs flex items-center justify-center text-xs font-semibold text-[#795548] gap-2">
-            <span className="w-4 h-4 border-2 border-[#795548] border-t-transparent rounded-full animate-spin"></span>
+          <div className="absolute inset-0 z-30 bg-[#0B0B0B]/80 backdrop-blur-2xs flex items-center justify-center text-xs font-semibold text-[#C6A47E] gap-2">
+            <span className="w-4 h-4 border-2 border-[#C6A47E] border-t-transparent rounded-full animate-spin"></span>
             Syncing live seating availability...
           </div>
         )}
 
         {/* Mobile touch pan indicator badge */}
-        <div className="absolute top-2 right-2 z-20 pointer-events-none opacity-80 sm:hidden flex items-center gap-1 bg-white/90 backdrop-blur-xs px-2.5 py-1 rounded-full text-[10px] text-[#795548] font-medium border border-[#E6DDD3] shadow-2xs">
+        <div className="absolute top-2 right-2 z-20 pointer-events-none opacity-85 sm:hidden flex items-center gap-1 bg-[#1C1917]/90 backdrop-blur-xs px-2.5 py-1 rounded-full text-[10px] text-[#C6A47E] font-medium border border-[#332A25] shadow-xs">
           <Move className="w-3 h-3" />
           <span>Pan & Zoom enabled</span>
         </div>
 
-        {/* FIXED VIRTUAL STAGE CANVAS
-            We fix the virtual floorplan canvas to 620px x 480px.
-            On smaller screens (e.g. mobile 320px-440px), autoFitScale perfectly shrinks the layout
-            so that percentage distances are preserved in true proportion without any tables overlapping. */}
+        {/* FIXED VIRTUAL STAGE CANVAS */}
         {(() => {
           const virtualW = 620;
           const virtualH = 480;
-          // Available stage width and height inside the container padding
           const stageW = containerWidth > 0 ? containerWidth - 16 : 360;
           const stageH = isMobile ? (containerWidth < 380 ? 380 : 420) : 500;
           const fitScale = Math.min(1, stageW / virtualW, stageH / virtualH);
@@ -302,22 +298,22 @@ export default function InteractiveSeatingMap({
             >
               {/* ARCHITECTURAL RESTAURANT MARKERS */}
               {/* Kitchen / Chef Pass Area */}
-              <div className="absolute top-2 left-6 right-6 h-7 sm:h-8 rounded-xl bg-[#3B2924]/5 border border-[#3B2924]/20 flex items-center justify-between px-3 sm:px-4 text-[9px] sm:text-[10px] uppercase font-bold tracking-widest text-[#795548] pointer-events-none">
+              <div className="absolute top-2 left-6 right-6 h-7 sm:h-8 rounded-xl bg-[#181513] border border-[#38251F] flex items-center justify-between px-3 sm:px-4 text-[9px] sm:text-[10px] uppercase font-bold tracking-widest text-[#C6A47E] pointer-events-none shadow-sm">
                 <span className="flex items-center gap-1.5 truncate">
-                  <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-600 shrink-0"></span>
+                  <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-500 shrink-0"></span>
                   <span className="truncate">Open Kitchen & Hearth</span>
                 </span>
-                <span className="text-[8px] sm:text-[9px] text-[#A89F91] shrink-0">Pass</span>
+                <span className="text-[8px] sm:text-[9px] text-[#8D8178] shrink-0">Pass</span>
               </div>
 
               {/* Entrance Door at Bottom */}
-              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-3 sm:px-4 py-1 rounded-full bg-[#E9DFD2] border border-[#C5BAAF] text-[9px] sm:text-[10px] font-bold text-[#3B2924] shadow-2xs flex items-center gap-1.5 pointer-events-none whitespace-nowrap">
-                <Compass className="w-3 h-3 text-[#795548]" />
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-3 sm:px-4 py-1 rounded-full bg-[#1C1917] border border-[#38251F] text-[9px] sm:text-[10px] font-bold text-[#C6A47E] shadow-sm flex items-center gap-1.5 pointer-events-none whitespace-nowrap">
+                <Compass className="w-3 h-3 text-[#C6A47E]" />
                 Guest Entrance
               </div>
 
               {/* Bar / Wine Counter on Right */}
-              <div className="absolute top-14 right-2 w-9 h-40 rounded-2xl bg-[#E6DDD3]/60 border border-[#C5BAAF] flex flex-col items-center justify-center text-[8px] font-bold uppercase tracking-widest text-[#795548] pointer-events-none origin-center">
+              <div className="absolute top-14 right-2 w-9 h-40 rounded-2xl bg-[#181513] border border-[#38251F] flex flex-col items-center justify-center text-[8px] font-bold uppercase tracking-widest text-[#C6A47E] pointer-events-none origin-center shadow-sm">
                 <span className="[writing-mode:vertical-rl] tracking-wider text-[8px]">Wine Cellar</span>
               </div>
 
@@ -333,7 +329,6 @@ export default function InteractiveSeatingMap({
                 const isRound = table.shape === 'round';
                 const isRectangle = table.shape === 'rectangle' || table.capacity >= 6;
                 
-                // Width / Height based on shape & capacity calibrated for virtual 620px canvas
                 let tableWidth = 56;
                 let tableHeight = 56;
                 if (isRound) {
@@ -347,16 +342,16 @@ export default function InteractiveSeatingMap({
                   tableHeight = 54;
                 }
 
-                // Determine table background styling based on cinema state
-                let tableBg = 'bg-[#FAF6F0] text-[#201B18] border-[#C5BAAF] hover:border-[#795548]';
+                // Determine table background styling based on state
+                let tableBg = 'bg-[#1C1917] text-[#F5F0E9] border-[#54372D] hover:border-[#C6A47E] hover:bg-[#25211E]';
                 if (isSelected) {
-                  tableBg = 'bg-[#3B2924] text-[#F8F5F0] border-[#201B18] shadow-lg ring-4 ring-[#795548]/30 scale-105';
+                  tableBg = 'bg-[#8B5E45] text-[#F5F0E9] border-[#C6A47E] shadow-xl ring-4 ring-[#C6A47E]/30 scale-105';
                 } else if (isBooked) {
-                  tableBg = 'bg-[#4A433F] text-gray-300 border-[#332D29] opacity-90 cursor-not-allowed';
+                  tableBg = 'bg-[#242424] text-[#888888] border-[#3A3A3A] opacity-90 cursor-not-allowed';
                 } else if (isHeld) {
-                  tableBg = 'bg-amber-100 text-amber-900 border-amber-400 cursor-not-allowed';
+                  tableBg = 'bg-[#38251F] text-amber-300 border-amber-600 cursor-not-allowed';
                 } else if (isUnavailable) {
-                  tableBg = 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed';
+                  tableBg = 'bg-[#181513] text-[#555555] border-[#25201C] cursor-not-allowed';
                 }
 
                 return (
@@ -386,28 +381,28 @@ export default function InteractiveSeatingMap({
                         width: `${tableWidth}px`,
                         height: `${tableHeight}px`,
                         boxShadow: viewMode === 'isometric' 
-                          ? (isSelected ? '0 12px 24px -4px rgba(59, 41, 36, 0.4)' : '0 6px 12px -2px rgba(0,0,0,0.12)')
-                          : '0 2px 4px rgba(0,0,0,0.06)'
+                          ? (isSelected ? '0 14px 28px -4px rgba(0, 0, 0, 0.7)' : '0 6px 14px -2px rgba(0,0,0,0.5)')
+                          : '0 2px 6px rgba(0,0,0,0.4)'
                       }}
                     >
                       <span className="font-serif font-bold text-xs tracking-tight">
                         {table.tableNumber}
                       </span>
                       <span className={`text-[8.5px] font-semibold flex items-center gap-0.5 ${
-                        isSelected ? 'text-[#E9DFD2]' : 'text-[#776B63]'
+                        isSelected ? 'text-[#F5F0E9]' : 'text-[#B7AAA0]'
                       }`}>
-                        <Users className="w-2.5 h-2.5" />
+                        <Users className="w-2.5 h-2.5 text-[#C6A47E]" />
                         {table.capacity}p
                       </span>
 
                       {/* Status Indicator Icon */}
                       {isSelected && (
-                        <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-[#795548] text-white flex items-center justify-center shadow-xs">
+                        <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-[#C6A47E] text-[#1C1917] flex items-center justify-center shadow-xs">
                           <Check className="w-3 h-3 stroke-[3]" />
                         </div>
                       )}
                       {isBooked && (
-                        <div className="absolute -top-1 -right-1 px-1 rounded-sm bg-gray-900 text-gray-200 text-[8px] font-mono">
+                        <div className="absolute -top-1 -right-1 px-1 rounded-sm bg-[#111111] text-[#999999] text-[8px] font-mono border border-[#3A3A3A]">
                           BOOKED
                         </div>
                       )}
@@ -416,7 +411,6 @@ export default function InteractiveSeatingMap({
                     {/* INDIVIDUAL CINEMA SEATS AROUND THIS TABLE */}
                     <div className="pointer-events-auto">
                       {table.seats.map((seat, seatIdx) => {
-                        // Position seats evenly around table perimeter with calibrated separation
                         const totalSeats = table.seats.length;
                         const angle = (seatIdx / totalSeats) * 2 * Math.PI;
                         const radiusX = (tableWidth / 2) + 11;
@@ -429,15 +423,16 @@ export default function InteractiveSeatingMap({
                         const isSeatHeld = seat.status === 'held' || isHeld;
                         const isSeatUnavailable = seat.status === 'unavailable' || isUnavailable;
 
-                        let seatBg = 'bg-[#FAF6F0] border-[#BCAAA4] text-[#3B2924] hover:bg-[#EFEBE4] hover:border-[#795548]';
+                        // Distinct, visible seat styling
+                        let seatBg = 'bg-[#EFEBE4] border-[#A89F91] text-[#1C1917] hover:bg-white hover:border-[#C6A47E]';
                         if (isSeatSelected) {
-                          seatBg = 'bg-[#3B2924] border-[#201B18] text-white ring-2 ring-[#795548] shadow-xs';
+                          seatBg = 'bg-[#8B5E45] border-[#C6A47E] text-[#F5F0E9] ring-2 ring-[#C6A47E] shadow-sm';
                         } else if (isSeatBooked) {
-                          seatBg = 'bg-[#4A433F] border-[#332D29] text-gray-400 cursor-not-allowed';
+                          seatBg = 'bg-[#2E2E2E] border-[#484848] text-[#888888] cursor-not-allowed';
                         } else if (isSeatHeld) {
-                          seatBg = 'bg-amber-400 border-amber-600 text-amber-950 cursor-not-allowed';
+                          seatBg = 'bg-amber-500 border-amber-300 text-amber-950 cursor-not-allowed';
                         } else if (isSeatUnavailable) {
-                          seatBg = 'bg-gray-300 border-gray-400 text-gray-500 cursor-not-allowed';
+                          seatBg = 'bg-[#1C1917] border-[#332A25] text-[#555555] cursor-not-allowed';
                         }
 
                         return (
@@ -451,7 +446,6 @@ export default function InteractiveSeatingMap({
                               zIndex: 15
                             }}
                           >
-                            {/* Generous touch hit-target wrapping the seat icon */}
                             <button
                               type="button"
                               disabled={isSeatBooked || isSeatHeld || isSeatUnavailable}
@@ -469,7 +463,7 @@ export default function InteractiveSeatingMap({
                               title={`Table ${table.tableNumber} • Seat ${seat.seatNumber} (${seat.status})`}
                               aria-label={`Select seat ${seat.seatNumber} at table ${table.tableNumber}`}
                             >
-                              <span className={`w-4.5 h-4.5 sm:w-5 sm:h-5 rounded-full border flex items-center justify-center text-[7.5px] sm:text-[8.5px] font-bold transition-transform hover:scale-125 active:scale-110 shadow-2xs ${seatBg}`}>
+                              <span className={`w-4.5 h-4.5 sm:w-5 sm:h-5 rounded-full border flex items-center justify-center text-[7.5px] sm:text-[8.5px] font-bold transition-transform hover:scale-125 active:scale-110 shadow-xs ${seatBg}`}>
                                 {seat.seatNumber}
                               </span>
                             </button>
@@ -487,22 +481,22 @@ export default function InteractiveSeatingMap({
 
         {/* HOVER TOOLTIP / INSPECTOR POPUP */}
         {(hoveredSeat || hoveredTable) && (
-          <div className="absolute bottom-3 left-3 right-3 sm:right-auto z-40 bg-[#201B18]/95 text-white px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl backdrop-blur-md text-xs shadow-lg flex items-center gap-2.5 border border-white/10 animate-in fade-in duration-150">
+          <div className="absolute bottom-3 left-3 right-3 sm:right-auto z-40 bg-[#181513]/95 text-[#F5F0E9] px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl backdrop-blur-md text-xs shadow-xl flex items-center gap-2.5 border border-[#332A25] animate-in fade-in duration-150">
             {hoveredSeat ? (
               <>
-                <div className="w-2 h-2 rounded-full bg-[#E9DFD2] shrink-0"></div>
+                <div className="w-2 h-2 rounded-full bg-[#C6A47E] shrink-0"></div>
                 <div className="truncate">
-                  <span className="font-semibold">{hoveredSeat.tableNumber}</span> • Seat #{hoveredSeat.seatNumber}
-                  <span className="ml-2 text-[10px] uppercase font-bold text-[#E9DFD2] tracking-wider">
+                  <span className="font-semibold text-[#F5F0E9]">{hoveredSeat.tableNumber}</span> • Seat #{hoveredSeat.seatNumber}
+                  <span className="ml-2 text-[10px] uppercase font-bold text-[#C6A47E] tracking-wider">
                     {hoveredSeat.status}
                   </span>
                 </div>
               </>
             ) : hoveredTable ? (
               <>
-                <div className="w-2 h-2 rounded-full bg-[#795548] shrink-0"></div>
+                <div className="w-2 h-2 rounded-full bg-[#8B5E45] shrink-0"></div>
                 <div className="truncate">
-                  <span className="font-semibold">{hoveredTable.tableNumber}</span> ({hoveredTable.locationArea}) • {hoveredTable.capacity} Guests
+                  <span className="font-semibold text-[#F5F0E9]">{hoveredTable.tableNumber}</span> ({hoveredTable.locationArea}) • {hoveredTable.capacity} Guests
                   <span className={`ml-2 text-[10px] uppercase font-bold tracking-wider ${
                     hoveredTable.status === 'available' ? 'text-emerald-400' : 'text-amber-400'
                   }`}>
@@ -517,20 +511,20 @@ export default function InteractiveSeatingMap({
       </div>
 
       {/* BOTTOM SELECTION STATUS BANNER */}
-      <div className="p-3 sm:p-3.5 rounded-2xl bg-white border border-[#E6DDD3] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+      <div className="p-3 sm:p-3.5 rounded-2xl bg-[#151311] border border-[#332A25] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
         <div>
-          <span className="text-[#776B63]">Your Seat Choice: </span>
+          <span className="text-[#B7AAA0]">Your Seat Choice: </span>
           {selectedTableId ? (
-            <span className="font-bold text-[#201B18]">
+            <span className="font-bold text-[#F5F0E9]">
               {tables.find(t => t.tableId === selectedTableId)?.tableNumber}
               {selectedSeats.length > 0 && ` (Seats: ${selectedSeats.join(', ')})`}
               {' • '}
-              <span className="text-[#795548] font-medium">
+              <span className="text-[#C6A47E] font-medium">
                 {tables.find(t => t.tableId === selectedTableId)?.locationArea}
               </span>
             </span>
           ) : (
-            <span className="font-medium italic text-[#776B63]">
+            <span className="font-medium italic text-[#8D8178]">
               Tap any table or seat on the map above to select your location.
             </span>
           )}
@@ -540,7 +534,7 @@ export default function InteractiveSeatingMap({
           <button
             type="button"
             onClick={() => onSelectTable('')}
-            className="text-[11px] font-semibold text-red-600 hover:text-red-800 transition cursor-pointer self-start sm:self-auto"
+            className="text-[11px] font-semibold text-rose-400 hover:text-rose-300 transition cursor-pointer self-start sm:self-auto"
           >
             Clear Selection
           </button>

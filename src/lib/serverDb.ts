@@ -33,13 +33,14 @@ import {
   INITIAL_MENU_CATEGORIES, 
   INITIAL_MENU_ITEMS, 
   INITIAL_RESERVATIONS,
-  INITIAL_REVIEWS
+  INITIAL_REVIEWS,
+  INITIAL_USERS
 } from '@/data/seed';
 
 // Memory map for cinema-style temporary seat holds with automatic expiration
 const seatHolds = new Map<string, { token: string; expiresAt: number }>();
 
-// Safe SQLite initialization that works reliably across local Windows, Linux, and Vercel/Netlify/AWS Lambda serverless environments
+// Safe SQLite connection initialization that works reliably across local Windows, Linux, and Vercel/Netlify/AWS Lambda serverless environments
 function initSqliteDatabase(): any {
   if (!DatabaseConstructor) return null;
 
@@ -91,12 +92,24 @@ function initSqliteDatabase(): any {
   }
 }
 
-const sqlite = initSqliteDatabase();
+// In-memory mirrored persistent collections for guaranteed zero-downtime serverless resilience
+const memRestaurants: Restaurant[] = [...INITIAL_RESTAURANTS];
+const memTables: DiningTable[] = [...INITIAL_TABLES];
+const memHours: RestaurantHours[] = [...INITIAL_HOURS];
+const memClosures: RestaurantClosure[] = [];
+const memCategories: MenuCategory[] = [...INITIAL_MENU_CATEGORIES];
+const memMenuItems: MenuItem[] = [...INITIAL_MENU_ITEMS];
+const memReservations: Reservation[] = [...INITIAL_RESERVATIONS];
+const memReviews: Review[] = [...INITIAL_REVIEWS];
+const memUsers: UserProfile[] = [...INITIAL_USERS];
 
-if (sqlite) {
-  try {
-    // Initialize SQL tables
-    sqlite.exec(`
+// Idempotent schema initialization and seed synchronization
+function ensureSchemaAndSeed(db: any): void {
+  // 1. Enforce SQLite foreign key integrity
+  db.pragma('foreign_keys = ON');
+
+  // 2. Initialize SQL tables in dependency hierarchy order
+  db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
@@ -146,14 +159,16 @@ if (sqlite) {
     dayOfWeek INTEGER NOT NULL,
     openTime TEXT NOT NULL,
     closeTime TEXT NOT NULL,
-    isClosed INTEGER NOT NULL DEFAULT 0
+    isClosed INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (restaurantId) REFERENCES restaurants(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS restaurant_closures (
     id TEXT PRIMARY KEY,
     restaurantId TEXT NOT NULL,
     closureDate TEXT NOT NULL,
-    reason TEXT
+    reason TEXT,
+    FOREIGN KEY (restaurantId) REFERENCES restaurants(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS tables (
@@ -166,7 +181,8 @@ if (sqlite) {
     shape TEXT DEFAULT 'rectangle',
     posX REAL DEFAULT 50,
     posY REAL DEFAULT 50,
-    rotation REAL DEFAULT 0
+    rotation REAL DEFAULT 0,
+    FOREIGN KEY (restaurantId) REFERENCES restaurants(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS menu_categories (
@@ -175,7 +191,8 @@ if (sqlite) {
     name TEXT NOT NULL,
     displayOrder INTEGER NOT NULL DEFAULT 0,
     description TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1
+    isActive INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (restaurantId) REFERENCES restaurants(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS menu_items (
@@ -192,7 +209,9 @@ if (sqlite) {
     isVegan INTEGER NOT NULL DEFAULT 0,
     isGlutenFree INTEGER NOT NULL DEFAULT 0,
     preparationNotes TEXT,
-    displayOrder INTEGER NOT NULL DEFAULT 0
+    displayOrder INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (restaurantId) REFERENCES restaurants(id) ON DELETE CASCADE,
+    FOREIGN KEY (categoryId) REFERENCES menu_categories(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS reservations (
@@ -212,7 +231,7 @@ if (sqlite) {
     status TEXT NOT NULL,
     assignedTableId TEXT,
     assignedTableName TEXT,
-    assignedSeatNumbers TEXT, -- JSON array of numbers e.g. [1, 2]
+    assignedSeatNumbers TEXT, -- JSON array
     specialRequests TEXT,
     orderSubtotal REAL NOT NULL DEFAULT 0,
     orderTax REAL NOT NULL DEFAULT 0,
@@ -221,7 +240,9 @@ if (sqlite) {
     cancellationReason TEXT,
     cancelledAt TEXT,
     createdAt TEXT NOT NULL,
-    updatedAt TEXT NOT NULL
+    updatedAt TEXT NOT NULL,
+    FOREIGN KEY (restaurantId) REFERENCES restaurants(id) ON DELETE CASCADE,
+    FOREIGN KEY (customerId) REFERENCES users(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS reviews (
@@ -253,291 +274,190 @@ if (sqlite) {
   CREATE INDEX IF NOT EXISTS idx_reviews_restaurant ON reviews(restaurantId);
   CREATE INDEX IF NOT EXISTS idx_reviews_customer ON reviews(customerId);
   CREATE INDEX IF NOT EXISTS idx_reviews_reservation ON reviews(reservationId);
-`);
-
-// Safe migrations for table layout, seat numbers, and reviews
-try {
-  sqlite.exec('ALTER TABLE menu_items ADD COLUMN isNonVegetarian INTEGER NOT NULL DEFAULT 0');
-} catch (e) {}
-
-try {
-  sqlite.exec("ALTER TABLE tables ADD COLUMN shape TEXT DEFAULT 'rectangle'");
-} catch (e) {}
-try {
-  sqlite.exec("ALTER TABLE tables ADD COLUMN posX REAL DEFAULT 50");
-} catch (e) {}
-try {
-  sqlite.exec("ALTER TABLE tables ADD COLUMN posY REAL DEFAULT 50");
-} catch (e) {}
-try {
-  sqlite.exec("ALTER TABLE tables ADD COLUMN rotation REAL DEFAULT 0");
-} catch (e) {}
-try {
-  sqlite.exec("ALTER TABLE reservations ADD COLUMN assignedSeatNumbers TEXT");
-} catch (e) {}
-
-// Seed Initial Data if database is freshly created
-const userCount = (sqlite.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number }).count;
-if (userCount === 0) {
-  // Seed Users
-  const insertUser = sqlite.prepare(`
-    INSERT INTO users (id, email, fullName, phone, role, password, ownedRestaurantId, createdAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  insertUser.run('cust-1', 'customer@demo.com', 'Eleanor Vance', '+1 (555) 234-9988', 'customer', 'password123', null, new Date().toISOString());
-  insertUser.run('cust-2', 'marcus.w@example.com', 'Marcus Wright', '+1 (555) 777-4321', 'customer', 'password123', null, new Date().toISOString());
-  insertUser.run('cust-3', 'sophia.l@example.com', 'Sophia Lorenzi', '+1 (555) 665-8833', 'customer', 'password123', null, new Date().toISOString());
-  insertUser.run('cust-4', 'david.patel@example.com', 'David K. Patel', '+1 (555) 332-9911', 'customer', 'password123', null, new Date().toISOString());
-  insertUser.run('cust-5', 'kenji.t@example.com', 'Kenji Takahashi', '+1 (555) 441-2090', 'customer', 'password123', null, new Date().toISOString());
-  insertUser.run('cust-6', 'chloe.b@example.com', 'Chloe Bennett', '+1 (555) 998-1122', 'customer', 'password123', null, new Date().toISOString());
-  insertUser.run('owner-1', 'owner@losteria.com', 'Chef Marco Bellini', '+1 (555) 349-8201', 'restaurant_owner', 'password123', 'rest-1', new Date().toISOString());
-  insertUser.run('owner-2', 'owner@saffron.com', 'Rajiv Mehra', '+1 (555) 782-9014', 'restaurant_owner', 'password123', 'rest-2', new Date().toISOString());
-
-  // Seed Restaurants
-  const insertRest = sqlite.prepare(`
-    INSERT INTO restaurants (
-      id, ownerId, name, slug, tagline, description, cuisineType, phone, email, address, city,
-      postalCode, coverImageUrl, logoUrl, priceTier, seatingManagementMode, totalSeatingCapacity,
-      slotDurationMinutes, bufferTimeMinutes, advanceBookingDays, minPartySize, maxPartySize,
-      cancellationPolicy, cancellationCutoffHours, requiresManualApproval, status, rating, reviewCount, createdAt
-    ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-      ?, ?, ?, ?, ?, ?, ?
-    )
+  CREATE INDEX IF NOT EXISTS idx_reservations_customer ON reservations(customerId);
+  CREATE INDEX IF NOT EXISTS idx_reservations_restaurant_date ON reservations(restaurantId, reservationDate);
   `);
 
-  for (const r of INITIAL_RESTAURANTS) {
-    insertRest.run(
-      r.id, r.ownerId, r.name, r.slug, r.tagline, r.description, JSON.stringify(r.cuisineType),
-      r.phone, r.email, r.address, r.city, r.postalCode, r.coverImageUrl, r.logoUrl || null,
-      r.priceTier, r.seatingManagementMode, r.totalSeatingCapacity, r.slotDurationMinutes,
-      r.bufferTimeMinutes, r.advanceBookingDays, r.minPartySize, r.maxPartySize,
-      r.cancellationPolicy, r.cancellationCutoffHours, r.requiresManualApproval ? 1 : 0,
-      r.status, r.rating || 4.9, r.reviewCount || 100, r.createdAt
-    );
-  }
+  // 3. Safe idempotent migrations
+  try { db.exec('ALTER TABLE menu_items ADD COLUMN isNonVegetarian INTEGER NOT NULL DEFAULT 0'); } catch (e) {}
+  try { db.exec("ALTER TABLE tables ADD COLUMN shape TEXT DEFAULT 'rectangle'"); } catch (e) {}
+  try { db.exec("ALTER TABLE tables ADD COLUMN posX REAL DEFAULT 50"); } catch (e) {}
+  try { db.exec("ALTER TABLE tables ADD COLUMN posY REAL DEFAULT 50"); } catch (e) {}
+  try { db.exec("ALTER TABLE tables ADD COLUMN rotation REAL DEFAULT 0"); } catch (e) {}
+  try { db.exec("ALTER TABLE reservations ADD COLUMN assignedSeatNumbers TEXT"); } catch (e) {}
 
-  // Seed Tables
-  const insertTable = sqlite.prepare(`
-    INSERT INTO tables (id, restaurantId, tableNumber, capacity, locationArea, isActive)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `);
-  for (const t of INITIAL_TABLES) {
-    insertTable.run(t.id, t.restaurantId, t.tableNumber, t.capacity, t.locationArea, t.isActive ? 1 : 0);
-  }
-
-  // Seed Hours
-  const insertHour = sqlite.prepare(`
-    INSERT INTO restaurant_hours (id, restaurantId, dayOfWeek, openTime, closeTime, isClosed)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `);
-  for (const h of INITIAL_HOURS) {
-    insertHour.run(h.id, h.restaurantId, h.dayOfWeek, h.openTime, h.closeTime, h.isClosed ? 1 : 0);
-  }
-
-  // Seed Menu Categories
-  const insertCategory = sqlite.prepare(`
-    INSERT INTO menu_categories (id, restaurantId, name, displayOrder, description, isActive)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `);
-  for (const c of INITIAL_MENU_CATEGORIES) {
-    insertCategory.run(c.id, c.restaurantId, c.name, c.displayOrder, c.description || null, c.isActive ? 1 : 0);
-  }
-
-  // Seed Menu Items
-  const insertMenuItem = sqlite.prepare(`
-    INSERT INTO menu_items (
-      id, restaurantId, categoryId, name, description, price, imageUrl, isAvailable, isVegetarian, isVegan, isGlutenFree, preparationNotes, displayOrder
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  for (const m of INITIAL_MENU_ITEMS) {
-    insertMenuItem.run(
-      m.id, m.restaurantId, m.categoryId, m.name, m.description, m.price, m.imageUrl || null,
-      m.isAvailable ? 1 : 0, m.isVegetarian ? 1 : 0, m.isVegan ? 1 : 0, m.isGlutenFree ? 1 : 0,
-      m.preparationNotes || null, m.displayOrder
-    );
-  }
-
-  // Seed Reservations
-  const insertRes = sqlite.prepare(`
-    INSERT INTO reservations (
-      id, bookingReference, restaurantId, restaurantName, restaurantSlug, customerId,
-      customerName, customerEmail, customerPhone, partySize, reservationDate, startTime,
-      endTime, status, assignedTableId, assignedTableName, specialRequests, orderSubtotal,
-      orderTax, estimatedTotal, items, createdAt, updatedAt
-    ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-    )
-  `);
-  for (const res of INITIAL_RESERVATIONS) {
-    insertRes.run(
-      res.id, res.bookingReference, res.restaurantId, res.restaurantName || null, res.restaurantSlug || null,
-      res.customerId, res.customerName, res.customerEmail, res.customerPhone, res.partySize,
-      res.reservationDate, res.startTime, res.endTime, res.status, res.assignedTableId || null,
-      res.assignedTableName || null, res.specialRequests || null, res.orderSubtotal, res.orderTax,
-      res.estimatedTotal, JSON.stringify(res.items || []), res.createdAt, res.updatedAt
-    );
-  }
-
-  // Seed Completed Reservations for real review capability
-  insertRes.run(
-    'res-comp-1', 'LT-COMP-01', 'rest-1', 'L’Osteria Terracotta', 'losteria-terracotta',
-    'cust-1', 'Eleanor Vance', 'customer@demo.com', '+1 (555) 234-9988', 2,
-    '2026-10-18', '19:30', '21:00', 'completed', 'tab-101', 'T-01 (Cap: 2)',
-    'Anniversary dinner', 84.50, 7.50, 92.00, '[]',
-    new Date(Date.now() - 3600000 * 96).toISOString(),
-    new Date(Date.now() - 3600000 * 96).toISOString()
-  );
-
-  insertRes.run(
-    'res-comp-2', 'LT-COMP-02', 'rest-1', 'L’Osteria Terracotta', 'losteria-terracotta',
-    'cust-2', 'Marcus Wright', 'marcus.w@example.com', '+1 (555) 777-4321', 4,
-    '2026-10-19', '20:00', '21:30', 'completed', 'tab-103', 'T-03 (Cap: 4)',
-    'Business gathering', 142.00, 12.60, 154.60, '[]',
-    new Date(Date.now() - 3600000 * 72).toISOString(),
-    new Date(Date.now() - 3600000 * 72).toISOString()
-  );
-
-  insertRes.run(
-    'res-comp-3', 'SS-COMP-01', 'rest-2', 'Saffron & Silk Bistro', 'saffron-and-silk-bistro',
-    'cust-1', 'Eleanor Vance', 'customer@demo.com', '+1 (555) 234-9988', 2,
-    '2026-10-17', '19:00', '20:30', 'completed', 'tab-201', 'S-01 (Cap: 2)',
-    'Window view requested', 72.00, 6.40, 78.40, '[]',
-    new Date(Date.now() - 3600000 * 120).toISOString(),
-    new Date(Date.now() - 3600000 * 120).toISOString()
-  );
-
-  insertRes.run(
-    'res-comp-4', 'LT-COMP-03', 'rest-1', 'L’Osteria Terracotta', 'losteria-terracotta',
-    'cust-1', 'Eleanor Vance', 'customer@demo.com', '+1 (555) 234-9988', 3,
-    '2026-10-21', '18:30', '20:00', 'completed', 'tab-102', 'T-02 (Cap: 4)',
-    'Family dinner', 115.00, 10.20, 125.20, '[]',
-    new Date(Date.now() - 3600000 * 24).toISOString(),
-    new Date(Date.now() - 3600000 * 24).toISOString()
-  );
-
-}
-
-// Seed completed reservations & verified initial reviews if not yet present
-try {
-  // Ensure all reviewer customer accounts exist in users table so foreign keys succeed
-  const insertUser = sqlite.prepare(`
-    INSERT OR IGNORE INTO users (id, email, fullName, phone, role, password, ownedRestaurantId, createdAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  const seedCustomers = [
-    { id: 'cust-1', email: 'customer@demo.com', fullName: 'Eleanor Vance', phone: '+1 (555) 234-9988' },
-    { id: 'cust-2', email: 'marcus.w@example.com', fullName: 'Marcus Wright', phone: '+1 (555) 777-4321' },
-    { id: 'cust-3', email: 'sophia.l@example.com', fullName: 'Sophia Lorenzi', phone: '+1 (555) 665-8833' },
-    { id: 'cust-4', email: 'david.patel@example.com', fullName: 'David K. Patel', phone: '+1 (555) 332-9911' },
-    { id: 'cust-5', email: 'kenji.t@example.com', fullName: 'Kenji Takahashi', phone: '+1 (555) 441-2090' },
-    { id: 'cust-6', email: 'chloe.b@example.com', fullName: 'Chloe Bennett', phone: '+1 (555) 998-1122' }
-  ];
-  for (const c of seedCustomers) {
-    try {
-      insertUser.run(c.id, c.email, c.fullName, c.phone, 'customer', 'password123', null, new Date().toISOString());
-    } catch (e) {}
-  }
-
-  const insertRes = sqlite.prepare(`
-    INSERT OR IGNORE INTO reservations (
-      id, bookingReference, restaurantId, restaurantName, restaurantSlug, customerId,
-      customerName, customerEmail, customerPhone, partySize, reservationDate, startTime,
-      endTime, status, assignedTableId, assignedTableName, specialRequests, orderSubtotal,
-      orderTax, estimatedTotal, items, createdAt, updatedAt
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const completedResList = [
-    ['res-comp-1', 'LT-COMP-01', 'rest-1', 'L’Osteria Terracotta', 'losteria-terracotta', 'cust-1', 'Eleanor Vance', 'customer@demo.com', '+1 (555) 234-9988', 2, '2026-10-18', '19:30', '21:00', 'completed', 'tab-101', 'T-01 (Cap: 2)', 'Anniversary dinner', 84.50, 7.50, 92.00, '[]', new Date(Date.now() - 3600000 * 96).toISOString(), new Date(Date.now() - 3600000 * 96).toISOString()],
-    ['res-comp-2', 'LT-COMP-02', 'rest-1', 'L’Osteria Terracotta', 'losteria-terracotta', 'cust-2', 'Marcus Wright', 'marcus.w@example.com', '+1 (555) 777-4321', 4, '2026-10-19', '20:00', '21:30', 'completed', 'tab-103', 'T-03 (Cap: 4)', 'Business gathering', 142.00, 12.60, 154.60, '[]', new Date(Date.now() - 3600000 * 72).toISOString(), new Date(Date.now() - 3600000 * 72).toISOString()],
-    ['res-comp-3', 'SS-COMP-01', 'rest-2', 'Saffron & Silk Bistro', 'saffron-and-silk-bistro', 'cust-1', 'Eleanor Vance', 'customer@demo.com', '+1 (555) 234-9988', 2, '2026-10-17', '19:00', '20:30', 'completed', 'tab-201', 'S-01 (Cap: 2)', 'Window view requested', 72.00, 6.40, 78.40, '[]', new Date(Date.now() - 3600000 * 120).toISOString(), new Date(Date.now() - 3600000 * 120).toISOString()],
-    ['res-comp-4', 'LT-COMP-03', 'rest-1', 'L’Osteria Terracotta', 'losteria-terracotta', 'cust-1', 'Eleanor Vance', 'customer@demo.com', '+1 (555) 234-9988', 3, '2026-10-21', '18:30', '20:00', 'completed', 'tab-102', 'T-02 (Cap: 4)', 'Family dinner', 115.00, 10.20, 125.20, '[]', new Date(Date.now() - 3600000 * 24).toISOString(), new Date(Date.now() - 3600000 * 24).toISOString()],
-    ['res-comp-5', 'SS-COMP-02', 'rest-2', 'Saffron & Silk Bistro', 'saffron-and-silk-bistro', 'cust-4', 'David K. Patel', 'david.patel@example.com', '+1 (555) 332-9911', 4, '2026-10-14', '19:30', '21:00', 'completed', 'tab-203', 'S-03 (Cap: 4)', 'Dinner meeting', 98.00, 8.70, 106.70, '[]', new Date(Date.now() - 3600000 * 140).toISOString(), new Date(Date.now() - 3600000 * 140).toISOString()],
-    ['res-comp-6', 'KR-COMP-01', 'rest-3', 'Kanso Robata & Botanical Bar', 'kanso-robata-bar', 'cust-5', 'Kenji Takahashi', 'kenji.t@example.com', '+1 (555) 441-2090', 2, '2026-10-20', '20:00', '21:30', 'completed', null, 'Chef Counter', 'Robata counter seating', 160.00, 14.20, 174.20, '[]', new Date(Date.now() - 3600000 * 30).toISOString(), new Date(Date.now() - 3600000 * 30).toISOString()],
-    ['res-comp-7', 'KR-COMP-02', 'rest-3', 'Kanso Robata & Botanical Bar', 'kanso-robata-bar', 'cust-6', 'Chloe Bennett', 'chloe.b@example.com', '+1 (555) 998-1122', 2, '2026-10-19', '19:00', '20:45', 'completed', null, 'Garden Hearth', 'Birthday celebration', 185.00, 16.40, 201.40, '[]', new Date(Date.now() - 3600000 * 50).toISOString(), new Date(Date.now() - 3600000 * 50).toISOString()]
-  ];
-
-  for (const row of completedResList) {
-    try {
-      insertRes.run(...row);
-    } catch (e) {}
-  }
-
-  const insertRev = sqlite.prepare(`
-    INSERT OR IGNORE INTO reviews (
-      id, restaurantId, customerId, customerName, customerEmail, reservationId,
-      overallRating, foodRating, serviceRating, ambienceRating, valueRating,
-      comment, tags, ownerResponse, ownerRespondedAt, createdAt, updatedAt
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  for (const rev of INITIAL_REVIEWS) {
-    try {
-      insertRev.run(
-        rev.id,
-        rev.restaurantId,
-        rev.customerId,
-        rev.customerName,
-        rev.customerEmail || null,
-        rev.reservationId,
-        rev.overallRating,
-        rev.foodRating || null,
-        rev.serviceRating || null,
-        rev.ambienceRating || null,
-        rev.valueRating || null,
-        rev.comment || null,
-        rev.tags ? JSON.stringify(rev.tags) : null,
-        rev.ownerResponse || null,
-        rev.ownerRespondedAt || null,
-        rev.createdAt,
-        rev.updatedAt
-      );
-      } catch (e) {}
+  // 4. Atomic, dependency-respecting seed transaction using INSERT OR IGNORE
+  // Guarantees all parent records exist before children and never overwrites user data
+  const seedTransaction = db.transaction(() => {
+    // Step A: Users (Parent of restaurants, reservations, reviews)
+    const insertUser = db.prepare(`
+      INSERT OR IGNORE INTO users (id, email, fullName, phone, role, password, ownedRestaurantId, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const u of INITIAL_USERS) {
+      insertUser.run(u.id, u.email, u.fullName, u.phone || null, u.role, u.password || 'password123', u.ownedRestaurantId || null, u.createdAt);
     }
-  } catch (e) {}
 
-  // Ensure all restaurant ratings accurately reflect real database review averages
-  // (Synchronizes restaurants where reviewCount or rating might differ from actual reviews)
-  try {
-    const allRests = sqlite.prepare('SELECT id FROM restaurants').all() as { id: string }[];
+    // Step B: Restaurants (Parent of hours, closures, tables, categories, items, reservations, reviews)
+    const insertRest = db.prepare(`
+      INSERT OR IGNORE INTO restaurants (
+        id, ownerId, name, slug, tagline, description, cuisineType, phone, email, address, city,
+        postalCode, coverImageUrl, logoUrl, priceTier, seatingManagementMode, totalSeatingCapacity,
+        slotDurationMinutes, bufferTimeMinutes, advanceBookingDays, minPartySize, maxPartySize,
+        cancellationPolicy, cancellationCutoffHours, requiresManualApproval, status, rating, reviewCount, createdAt
+      ) VALUES (
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?
+      )
+    `);
+    for (const r of INITIAL_RESTAURANTS) {
+      insertRest.run(
+        r.id, r.ownerId, r.name, r.slug, r.tagline, r.description, JSON.stringify(r.cuisineType),
+        r.phone, r.email, r.address, r.city, r.postalCode, r.coverImageUrl, r.logoUrl || null,
+        r.priceTier, r.seatingManagementMode, r.totalSeatingCapacity, r.slotDurationMinutes,
+        r.bufferTimeMinutes, r.advanceBookingDays, r.minPartySize, r.maxPartySize,
+        r.cancellationPolicy, r.cancellationCutoffHours, r.requiresManualApproval ? 1 : 0,
+        r.status, r.rating || 4.9, r.reviewCount || 100, r.createdAt
+      );
+    }
+
+    // Step C: Tables (Parent of reservations.assignedTableId)
+    const insertTable = db.prepare(`
+      INSERT OR IGNORE INTO tables (id, restaurantId, tableNumber, capacity, locationArea, isActive, shape, posX, posY, rotation)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const t of INITIAL_TABLES) {
+      insertTable.run(t.id, t.restaurantId, t.tableNumber, t.capacity, t.locationArea || null, t.isActive ? 1 : 0, t.shape || 'rectangle', t.posX ?? 50, t.posY ?? 50, t.rotation ?? 0);
+    }
+
+    // Step D: Restaurant Hours
+    const insertHour = db.prepare(`
+      INSERT OR IGNORE INTO restaurant_hours (id, restaurantId, dayOfWeek, openTime, closeTime, isClosed)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    for (const h of INITIAL_HOURS) {
+      insertHour.run(h.id, h.restaurantId, h.dayOfWeek, h.openTime, h.closeTime, h.isClosed ? 1 : 0);
+    }
+
+    // Step E: Menu Categories (Parent of menu_items)
+    const insertCategory = db.prepare(`
+      INSERT OR IGNORE INTO menu_categories (id, restaurantId, name, displayOrder, description, isActive)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    for (const c of INITIAL_MENU_CATEGORIES) {
+      insertCategory.run(c.id, c.restaurantId, c.name, c.displayOrder, c.description || null, c.isActive ? 1 : 0);
+    }
+
+    // Step F: Menu Items
+    const insertMenuItem = db.prepare(`
+      INSERT OR IGNORE INTO menu_items (
+        id, restaurantId, categoryId, name, description, price, imageUrl, isAvailable, isVegetarian, isNonVegetarian, isVegan, isGlutenFree, preparationNotes, displayOrder
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const m of INITIAL_MENU_ITEMS) {
+      insertMenuItem.run(
+        m.id, m.restaurantId, m.categoryId, m.name, m.description || null, m.price, m.imageUrl || null,
+        m.isAvailable ? 1 : 0, m.isVegetarian ? 1 : 0, m.isNonVegetarian ? 1 : 0, m.isVegan ? 1 : 0, m.isGlutenFree ? 1 : 0,
+        m.preparationNotes || null, m.displayOrder || 0
+      );
+    }
+
+    // Step G: Reservations (Parent of reviews)
+    const insertRes = db.prepare(`
+      INSERT OR IGNORE INTO reservations (
+        id, bookingReference, restaurantId, restaurantName, restaurantSlug, customerId,
+        customerName, customerEmail, customerPhone, partySize, reservationDate, startTime,
+        endTime, status, assignedTableId, assignedTableName, assignedSeatNumbers, specialRequests, orderSubtotal,
+        orderTax, estimatedTotal, items, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const res of INITIAL_RESERVATIONS) {
+      insertRes.run(
+        res.id, res.bookingReference, res.restaurantId, res.restaurantName || null, res.restaurantSlug || null,
+        res.customerId, res.customerName, res.customerEmail, res.customerPhone, res.partySize,
+        res.reservationDate, res.startTime, res.endTime, res.status, res.assignedTableId || null,
+        res.assignedTableName || null, res.assignedSeatNumbers ? JSON.stringify(res.assignedSeatNumbers) : null,
+        res.specialRequests || null, res.orderSubtotal, res.orderTax,
+        res.estimatedTotal, JSON.stringify(res.items || []), res.createdAt, res.updatedAt
+      );
+    }
+
+    // Step H: Reviews (Dependent on users, restaurants, reservations)
+    const insertRev = db.prepare(`
+      INSERT OR IGNORE INTO reviews (
+        id, restaurantId, customerId, customerName, customerEmail, reservationId,
+        overallRating, foodRating, serviceRating, ambienceRating, valueRating,
+        comment, tags, ownerResponse, ownerRespondedAt, isReported, reportReason, reportedAt, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const rev of INITIAL_REVIEWS) {
+      insertRev.run(
+        rev.id, rev.restaurantId, rev.customerId, rev.customerName, rev.customerEmail || null, rev.reservationId,
+        Math.round(rev.overallRating), rev.foodRating ? Math.round(rev.foodRating) : null,
+        rev.serviceRating ? Math.round(rev.serviceRating) : null, rev.ambienceRating ? Math.round(rev.ambienceRating) : null,
+        rev.valueRating ? Math.round(rev.valueRating) : null, rev.comment || null,
+        rev.tags ? JSON.stringify(rev.tags) : null, rev.ownerResponse || null, rev.ownerRespondedAt || null,
+        rev.isReported ? 1 : 0, rev.reportReason || null, rev.reportedAt || null,
+        rev.createdAt, rev.updatedAt
+      );
+    }
+
+    // Step I: Synchronize restaurant ratings with verified reviews
+    const allRests = db.prepare('SELECT id FROM restaurants').all() as { id: string }[];
     for (const r of allRests) {
-      const revStats = sqlite.prepare(`
+      const revStats = db.prepare(`
         SELECT COUNT(*) as count, AVG(overallRating) as avgRating 
         FROM reviews WHERE restaurantId = ?
       `).get(r.id) as { count: number; avgRating: number | null };
       const realCount = revStats?.count || 0;
       if (realCount > 0) {
         const realRating = Number((revStats.avgRating || 0).toFixed(1));
-        sqlite.prepare('UPDATE restaurants SET rating = ?, reviewCount = ? WHERE id = ?').run(realRating, realCount, r.id);
+        db.prepare('UPDATE restaurants SET rating = ?, reviewCount = ? WHERE id = ?').run(realRating, realCount, r.id);
       }
     }
-  } catch (err) {
-    console.warn('[serverDb] SQLite schema execution error:', err);
+  });
+
+  seedTransaction();
+
+  // 5. Run PRAGMA foreign_key_check to verify 0 foreign key violations
+  const fkViolations = db.pragma('foreign_key_check') as any[];
+  if (fkViolations && fkViolations.length > 0) {
+    console.warn('[serverDb] Foreign key violations found during check:', fkViolations);
   }
-} catch (outerErr) {
-  console.warn('[serverDb] SQLite initialization error:', outerErr);
-}
 }
 
-// In-memory mirrored persistent collections for guaranteed zero-downtime serverless resilience
-const memRestaurants: Restaurant[] = [...INITIAL_RESTAURANTS];
-const memTables: DiningTable[] = [...INITIAL_TABLES];
-const memHours: RestaurantHours[] = [...INITIAL_HOURS];
-const memClosures: RestaurantClosure[] = [];
-const memCategories: MenuCategory[] = [...INITIAL_MENU_CATEGORIES];
-const memMenuItems: MenuItem[] = [...INITIAL_MENU_ITEMS];
-const memReservations: Reservation[] = [...INITIAL_RESERVATIONS];
-const memReviews: Review[] = [...INITIAL_REVIEWS];
-const memUsers: UserProfile[] = [
-  { id: 'cust-1', email: 'customer@demo.com', fullName: 'Eleanor Vance', phone: '+1 (555) 234-9988', role: 'customer', createdAt: new Date().toISOString() },
-  { id: 'owner-1', email: 'owner@losteria.com', fullName: 'Chef Marco Bellini', phone: '+1 (555) 349-8201', role: 'restaurant_owner', ownedRestaurantId: 'rest-1', createdAt: new Date().toISOString() },
-  { id: 'owner-2', email: 'owner@saffron.com', fullName: 'Rajiv Mehra', phone: '+1 (555) 782-9014', role: 'restaurant_owner', ownedRestaurantId: 'rest-2', createdAt: new Date().toISOString() }
-];
+// Lazy memoized SQLite database accessor
+let _sqliteInstance: any = null;
+let _sqliteInitialized = false;
+
+function getSqlite(): any {
+  if (_sqliteInitialized) return _sqliteInstance;
+  _sqliteInitialized = true;
+  _sqliteInstance = initSqliteDatabase();
+  if (_sqliteInstance) {
+    try {
+      ensureSchemaAndSeed(_sqliteInstance);
+    } catch (err) {
+      console.warn('[serverDb] SQLite schema/seed failed, running in memory fallback mode:', err);
+    }
+  }
+  return _sqliteInstance;
+}
+
+// Lazy proxy for backward-compatible db queries across serverDb methods
+const sqlite: any = new Proxy({}, {
+  get(_target, prop) {
+    const db = getSqlite();
+    if (!db) return undefined;
+    const val = db[prop];
+    return typeof val === 'function' ? val.bind(db) : val;
+  }
+});
 
 function safeQuery<T>(sqlFn: () => T, memoryFallbackFn: () => T): T {
-  if (sqlite) {
+  const db = getSqlite();
+  if (db) {
     try {
       return sqlFn();
     } catch (err) {
@@ -549,7 +469,8 @@ function safeQuery<T>(sqlFn: () => T, memoryFallbackFn: () => T): T {
 
 function safeMutation<T>(sqlFn: () => T, memoryMutationFn: () => T): T {
   const result = memoryMutationFn();
-  if (sqlite) {
+  const db = getSqlite();
+  if (db) {
     try {
       sqlFn();
     } catch (err) {

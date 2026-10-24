@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { serverDb } from '@/lib/serverDb';
 import { UserProfile } from '@/types';
+import { supabaseServer } from '@/lib/supabaseServer';
 
 export async function POST(request: NextRequest) {
   try {
@@ -85,13 +86,21 @@ export async function POST(request: NextRequest) {
       serverDb.saveUser(adminUser);
     }
 
+    if (supabaseServer.isConfigured()) {
+      await supabaseServer.saveAdminUser(adminUser);
+    }
+
+    // Generate immediate session token for seamless initial entry
+    const sessionToken = Buffer.from(`${adminUser.id}:${Date.now()}:${adminUser.email}`).toString('base64');
+
     // Sanitize response: never return password to client
     const { password: _, ...safeAdmin } = adminUser;
 
     return NextResponse.json({
       success: true,
       message: 'Super Admin account successfully initialized.',
-      admin: safeAdmin
+      admin: safeAdmin,
+      token: sessionToken
     }, { status: 201 });
 
   } catch (err: any) {

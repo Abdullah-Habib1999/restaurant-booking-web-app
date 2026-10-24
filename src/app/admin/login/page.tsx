@@ -108,9 +108,22 @@ export default function AdminLoginPage() {
         <div className="bg-[#181513] border border-[#332A25] rounded-2xl p-6 sm:p-8 shadow-2xl space-y-6">
           
           {error && (
-            <div className="flex items-center gap-2.5 p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/30 text-rose-200 text-xs">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-              <span>{error}</span>
+            <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/30 text-rose-200 text-xs space-y-2">
+              <div className="flex items-center gap-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <span className="leading-relaxed">{error}</span>
+              </div>
+              {(error.toLowerCase().includes('setup') || error.toLowerCase().includes('initial') || hasAdmin === false) && (
+                <div className="pt-1">
+                  <Link
+                    href="/admin/setup"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#C6A47E]/20 text-[#C6A47E] border border-[#C6A47E]/30 font-semibold hover:bg-[#C6A47E]/30 transition text-[11px]"
+                  >
+                    <span>Proceed to Master Setup (/admin/setup)</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              )}
             </div>
           )}
 

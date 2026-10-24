@@ -104,6 +104,31 @@ const memReservations: Reservation[] = [...INITIAL_RESERVATIONS];
 const memReviews: Review[] = [...INITIAL_REVIEWS];
 const memUsers: UserProfile[] = [...INITIAL_USERS];
 
+function syncEnvAdmin(): void {
+  if (process.env.ADMIN_INITIAL_EMAIL && process.env.ADMIN_INITIAL_PASSWORD) {
+    const envEmail = process.env.ADMIN_INITIAL_EMAIL.trim().toLowerCase();
+    const envPass = process.env.ADMIN_INITIAL_PASSWORD.trim();
+    const envName = process.env.ADMIN_INITIAL_NAME?.trim() || 'Super Administrator';
+    const found = memUsers.find(u => u.email.toLowerCase() === envEmail);
+    if (found) {
+      found.role = 'admin';
+      found.password = envPass;
+      found.fullName = envName;
+    } else {
+      memUsers.push({
+        id: 'admin-primary',
+        email: envEmail,
+        fullName: envName,
+        phone: undefined,
+        role: 'admin',
+        password: envPass,
+        createdAt: new Date().toISOString()
+      });
+    }
+  }
+}
+syncEnvAdmin();
+
 // Idempotent schema initialization and seed synchronization
 function ensureSchemaAndSeed(db: any): void {
   // 1. Enforce SQLite foreign key integrity
@@ -302,6 +327,20 @@ function ensureSchemaAndSeed(db: any): void {
     `);
     for (const u of INITIAL_USERS) {
       insertUser.run(u.id, u.email, u.fullName, u.phone || null, u.role, u.password || 'password123', u.ownedRestaurantId || null, u.createdAt);
+    }
+
+    // Step A.1: Provision Super Admin from server environment variables if configured
+    if (process.env.ADMIN_INITIAL_EMAIL && process.env.ADMIN_INITIAL_PASSWORD) {
+      const envEmail = process.env.ADMIN_INITIAL_EMAIL.trim().toLowerCase();
+      const envPass = process.env.ADMIN_INITIAL_PASSWORD.trim();
+      const envName = process.env.ADMIN_INITIAL_NAME?.trim() || 'Super Administrator';
+      const existing = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(envEmail);
+      if (existing) {
+        db.prepare('UPDATE users SET role = ?, password = ?, fullName = ? WHERE LOWER(email) = ?')
+          .run('admin', envPass, envName, envEmail);
+      } else {
+        insertUser.run('admin-primary', envEmail, envName, null, 'admin', envPass, null, new Date().toISOString());
+      }
     }
 
     // Step B: Restaurants (Parent of hours, closures, tables, categories, items, reservations, reviews)
@@ -1638,6 +1677,7 @@ export const serverDb = {
 
   // USERS
   getUsers: (): UserProfile[] => {
+    syncEnvAdmin();
     return safeQuery(
       () => sqlite.prepare('SELECT * FROM users').all() as UserProfile[],
       () => memUsers
@@ -1645,6 +1685,7 @@ export const serverDb = {
   },
 
   getUserById: (id: string): UserProfile | null => {
+    syncEnvAdmin();
     return safeQuery(
       () => sqlite.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserProfile | null,
       () => memUsers.find(u => u.id === id) || null
@@ -1652,6 +1693,7 @@ export const serverDb = {
   },
 
   getUserByEmail: (email: string): UserProfile | null => {
+    syncEnvAdmin();
     return safeQuery(
       () => sqlite.prepare('SELECT * FROM users WHERE LOWER(email) = LOWER(?)').get(email) as UserProfile | null,
       () => memUsers.find(u => u.email.toLowerCase() === email.toLowerCase()) || null
@@ -1686,6 +1728,10 @@ export const serverDb = {
 
   // ADMIN OPERATIONS
   hasAnyAdmin: (): boolean => {
+    if (process.env.ADMIN_INITIAL_EMAIL && process.env.ADMIN_INITIAL_PASSWORD) {
+      return true;
+    }
+    syncEnvAdmin();
     return safeQuery(
       () => {
         const row = sqlite.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").get() as { count: number };

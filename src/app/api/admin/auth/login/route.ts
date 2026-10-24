@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { serverDb } from '@/lib/serverDb';
+import { supabaseServer } from '@/lib/supabaseServer';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,8 +14,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if any admin exists on this system
+    let hasAdmin = serverDb.hasAnyAdmin();
+    if (!hasAdmin && supabaseServer.isConfigured()) {
+      hasAdmin = await supabaseServer.hasAnyAdmin();
+    }
+
+    if (!hasAdmin) {
+      return NextResponse.json(
+        { 
+          error: 'No Super Administrator has been initialized on this instance yet. Please visit /admin/setup to complete initial setup, or configure ADMIN_INITIAL_EMAIL and ADMIN_INITIAL_PASSWORD in Netlify environment variables.',
+          needsSetup: true
+        },
+        { status: 400 }
+      );
+    }
+
     const cleanEmail = email.trim().toLowerCase();
-    const user = serverDb.getUserByEmail(cleanEmail);
+    let user = serverDb.getUserByEmail(cleanEmail);
+    if (!user && supabaseServer.isConfigured()) {
+      user = await supabaseServer.getAdminUserByEmail(cleanEmail);
+    }
 
     if (!user) {
       return NextResponse.json(

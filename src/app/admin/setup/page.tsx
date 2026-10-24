@@ -85,7 +85,7 @@ export default function AdminSetupPage() {
       });
 
       setSuccess('Super Admin initialized successfully! Signing in...');
-      adminAuth.setStoredAdmin(res.admin);
+      adminAuth.setStoredAdmin(res.admin, res.token);
 
       setTimeout(() => {
         router.push('/admin');

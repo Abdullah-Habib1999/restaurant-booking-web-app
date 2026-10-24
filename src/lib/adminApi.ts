@@ -77,7 +77,7 @@ export const adminApi = {
     email: string;
     password: string;
     bootstrapSecret?: string;
-  }): Promise<{ success: boolean; admin: UserProfile; error?: string }> => {
+  }): Promise<{ success: boolean; admin: UserProfile; token?: string; error?: string }> => {
     const res = await fetch('/api/admin/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { serverDb } from '@/lib/serverDb';
+import { supabaseServer } from '@/lib/supabaseServer';
 
 export async function GET(request: NextRequest) {
   try {
     // Read request property to ensure dynamic server execution per request
     const _reqUrl = request.url;
-    const hasAdmin = serverDb.hasAnyAdmin();
+    let hasAdmin = serverDb.hasAnyAdmin();
+    if (!hasAdmin && supabaseServer.isConfigured()) {
+      hasAdmin = await supabaseServer.hasAnyAdmin();
+    }
     const isBootstrapSecretRequired = Boolean(process.env.ADMIN_BOOTSTRAP_SECRET);
 
     return NextResponse.json({

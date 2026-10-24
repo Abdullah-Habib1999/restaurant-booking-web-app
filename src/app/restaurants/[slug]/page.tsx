@@ -21,7 +21,8 @@ import {
   ChevronLeft,
   ChevronDown,
   AlertCircle,
-  Star
+  Star,
+  RefreshCw
 } from 'lucide-react';
 import { db } from '@/lib/db';
 import { 
@@ -30,7 +31,8 @@ import {
   MenuItem, 
   TimeSlotAvailability,
   RestaurantHours, 
-  TableSeatStatus 
+  TableSeatStatus,
+  AvailabilityStatus
 } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { Suspense } from 'react';
@@ -68,6 +70,8 @@ function RestaurantDetailContent() {
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [availableSlots, setAvailableSlots] = useState<TimeSlotAvailability[]>([]);
   const [checkingSlots, setCheckingSlots] = useState(false);
+  const [slotsStatus, setSlotsStatus] = useState<AvailabilityStatus>('loading');
+  const [slotsMessage, setSlotsMessage] = useState<string>('');
 
   // Active Menu Category Filter
   const [activeCategory, setActiveCategory] = useState<string>('all');
@@ -139,25 +143,63 @@ function RestaurantDetailContent() {
   }, [restaurant, user]);
 
   // Recalculate Available Slots when date or partySize changes, and auto-refresh every 5 seconds for live cross-user drops
+  const fetchSlots = async (isBackground = false) => {
+    if (!restaurant) return;
+    if (!isBackground) setCheckingSlots(true);
+    try {
+      const details = await db.getSlotAvailabilityDetails(restaurant.id, visitDate, partySize);
+      setAvailableSlots(details.slots || []);
+      setSlotsStatus(details.status);
+      setSlotsMessage(details.message);
+      if (selectedSlot) {
+        const stillAvail = (details.slots || []).find(s => s.time === selectedSlot && s.isAvailable);
+        if (!stillAvail) setSelectedSlot(null);
+      }
+    } catch (err) {
+      setSlotsStatus('error');
+      setSlotsMessage("We couldn't load availability. Please try again.");
+      setAvailableSlots([]);
+    } finally {
+      if (!isBackground) setCheckingSlots(false);
+    }
+  };
+
   useEffect(() => {
     if (!restaurant) return;
     let isSubscribed = true;
 
-    const fetchSlots = async (isBackground = false) => {
+    const runFetch = async (isBackground = false) => {
       if (!isBackground) setCheckingSlots(true);
-      const slots = await db.checkSlotAvailability(restaurant.id, visitDate, partySize);
-      if (isSubscribed) {
-        setAvailableSlots(slots);
-        if (!isBackground) setCheckingSlots(false);
+      try {
+        const details = await db.getSlotAvailabilityDetails(restaurant.id, visitDate, partySize);
+        if (isSubscribed) {
+          setAvailableSlots(details.slots || []);
+          setSlotsStatus(details.status);
+          setSlotsMessage(details.message);
+          if (selectedSlot) {
+            const stillAvail = (details.slots || []).find(s => s.time === selectedSlot && s.isAvailable);
+            if (!stillAvail) setSelectedSlot(null);
+          }
+        }
+      } catch (err) {
+        if (isSubscribed) {
+          setSlotsStatus('error');
+          setSlotsMessage("We couldn't load availability. Please try again.");
+          setAvailableSlots([]);
+        }
+      } finally {
+        if (isSubscribed && !isBackground) {
+          setCheckingSlots(false);
+        }
       }
     };
 
     // Initial load
-    fetchSlots(false);
+    runFetch(false);
 
     // Live polling every 5s so when other users reserve seats, seat counts drop in real-time
     const interval = setInterval(() => {
-      fetchSlots(true);
+      runFetch(true);
     }, 5000);
 
     return () => {
@@ -379,11 +421,8 @@ function RestaurantDetailContent() {
       setConfirmedBookingReference(result.reservation.bookingReference);
       setStep('confirmed');
       // Refresh available slots and seat map immediately
-      const [slots, seatData] = await Promise.all([
-        db.checkSlotAvailability(restaurant.id, visitDate, partySize),
-        db.getTableSeatsAvailability(restaurant.id, visitDate, selectedSlot, partySize)
-      ]);
-      setAvailableSlots(slots);
+      fetchSlots(true);
+      const seatData = await db.getTableSeatsAvailability(restaurant.id, visitDate, selectedSlot, partySize);
       setTableSeats(seatData);
       checkActiveBooking();
     } else {
@@ -709,19 +748,71 @@ function RestaurantDetailContent() {
                     </div>
 
                     {checkingSlots ? (
-                      <div className="text-xs text-[#6B625D] py-4 text-center animate-pulse flex items-center justify-center gap-2">
+                      <div className="text-xs text-[#6B625D] py-5 text-center animate-pulse flex items-center justify-center gap-2">
                         <span className="w-3.5 h-3.5 border-2 border-[#795548] border-t-transparent rounded-full animate-spin"></span>
-                        Checking live table availability...
+                        <span>Checking available times...</span>
+                      </div>
+                    ) : slotsStatus === 'closed' ? (
+                      <div className="p-3.5 rounded-xl bg-rose-50 text-rose-900 text-xs border border-rose-200 space-y-1">
+                        <div className="font-semibold flex items-center gap-1.5 text-rose-800">
+                          <Clock className="w-4 h-4 text-rose-600 shrink-0" />
+                          <span>This restaurant is closed on the selected date.</span>
+                        </div>
+                        <p className="text-[11px] text-rose-700 leading-relaxed">
+                          {slotsMessage || `${restaurant.name} has no scheduled operating hours on ${visitDate}. Please select another date.`}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setShowWeeklyHours(true)}
+                          className="text-[11px] font-semibold text-rose-800 underline underline-offset-2 hover:text-rose-950 mt-1 cursor-pointer block"
+                        >
+                          View 7-Day Operating Hours
+                        </button>
+                      </div>
+                    ) : slotsStatus === 'missing_schedule' ? (
+                      <div className="p-3.5 rounded-xl bg-amber-50 text-amber-900 text-xs border border-amber-200 space-y-1">
+                        <div className="font-semibold flex items-center gap-1.5 text-amber-800">
+                          <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                          <span>Opening hours have not been configured for this restaurant.</span>
+                        </div>
+                        <p className="text-[11px] text-amber-700 leading-relaxed">
+                          The management has not published hours for this date. Please check back soon or contact the venue directly.
+                        </p>
+                      </div>
+                    ) : slotsStatus === 'no_slots' ? (
+                      <div className="p-3.5 rounded-xl bg-amber-50 text-amber-900 text-xs border border-amber-200 space-y-1">
+                        <div className="font-semibold flex items-center gap-1.5 text-amber-800">
+                          <Clock className="w-4 h-4 text-amber-700 shrink-0" />
+                          <span>No reservation times are available for this date. Please try another date.</span>
+                        </div>
+                        <p className="text-[11px] text-amber-700 leading-relaxed">
+                          All available capacity for a party of {partySize} on {visitDate} has been filled or previous slots have passed.
+                        </p>
+                      </div>
+                    ) : slotsStatus === 'error' ? (
+                      <div className="p-3.5 rounded-xl bg-red-50 text-red-900 text-xs border border-red-200 space-y-2">
+                        <div className="font-semibold flex items-center gap-1.5 text-red-800">
+                          <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                          <span>We couldn't load availability. Please try again.</span>
+                        </div>
+                        <p className="text-[11px] text-red-700">
+                          {slotsMessage || 'Unable to connect to live booking service.'}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => fetchSlots(false)}
+                          className="px-3 py-1.5 rounded-lg bg-red-100 hover:bg-red-200 text-red-800 font-semibold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-xs"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          <span>Retry Availability</span>
+                        </button>
                       </div>
                     ) : availableSlots.length === 0 ? (
                       <div className="p-3.5 rounded-xl bg-amber-50 text-amber-900 text-xs border border-amber-200 space-y-1">
-                        <div className="font-semibold flex items-center gap-1.5">
-                          <Clock className="w-3.5 h-3.5 text-amber-700" />
-                          <span>Restaurant Closed or Fully Booked</span>
+                        <div className="font-semibold flex items-center gap-1.5 text-amber-800">
+                          <Clock className="w-4 h-4 text-amber-700 shrink-0" />
+                          <span>No reservation times are available for this date. Please try another date.</span>
                         </div>
-                        <p className="text-[11px] text-amber-800">
-                          {restaurant.name} has no available reservation slots on {visitDate}. Please select another date or check weekly hours above.
-                        </p>
                       </div>
                     ) : (
                       <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">

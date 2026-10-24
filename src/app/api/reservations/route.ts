@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     const reservations = serverDb.getReservations({ restaurantId, customerId });
     return NextResponse.json(reservations);
   } catch (err: any) {
+    if (err?.digest?.startsWith('NEXT_')) throw err;
     console.error('API /api/reservations GET error:', err);
     return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });
   }

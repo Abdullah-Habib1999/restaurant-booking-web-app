@@ -15,7 +15,9 @@ import {
   ReservationStatus,
   TableSeatStatus,
   Review,
-  ReviewStats
+  ReviewStats,
+  AvailabilityStatus,
+  SlotAvailabilityResponse
 } from '@/types';
 import { 
   INITIAL_RESTAURANTS, 
@@ -123,6 +125,13 @@ sqlite.exec(`
     openTime TEXT NOT NULL,
     closeTime TEXT NOT NULL,
     isClosed INTEGER NOT NULL DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS restaurant_closures (
+    id TEXT PRIMARY KEY,
+    restaurantId TEXT NOT NULL,
+    closureDate TEXT NOT NULL,
+    reason TEXT
   );
 
   CREATE TABLE IF NOT EXISTS tables (
@@ -513,8 +522,9 @@ try {
 function mapRestaurant(row: any): Restaurant {
   return {
     ...row,
-    cuisineType: JSON.parse(row.cuisineType),
-    requiresManualApproval: Boolean(row.requiresManualApproval)
+    cuisineType: JSON.parse(row.cuisineType || '[]'),
+    requiresManualApproval: Boolean(row.requiresManualApproval),
+    timezone: row.timezone || 'America/New_York'
   };
 }
 
@@ -548,12 +558,18 @@ export const serverDb = {
   },
 
   getRestaurantBySlug: (slug: string): Restaurant | null => {
-    const row = sqlite.prepare('SELECT * FROM restaurants WHERE slug = ?').get(slug);
+    let row = sqlite.prepare('SELECT * FROM restaurants WHERE slug = ?').get(slug);
+    if (!row) {
+      row = sqlite.prepare('SELECT * FROM restaurants WHERE id = ?').get(slug);
+    }
     return row ? mapRestaurant(row) : null;
   },
 
   getRestaurantById: (id: string): Restaurant | null => {
-    const row = sqlite.prepare('SELECT * FROM restaurants WHERE id = ?').get(id);
+    let row = sqlite.prepare('SELECT * FROM restaurants WHERE id = ?').get(id);
+    if (!row) {
+      row = sqlite.prepare('SELECT * FROM restaurants WHERE slug = ?').get(id);
+    }
     return row ? mapRestaurant(row) : null;
   },
 
@@ -701,17 +717,20 @@ export const serverDb = {
     sqlite.prepare('DELETE FROM menu_items WHERE id = ?').run(id);
   },
 
-  // HOURS
+  // HOURS & SCHEDULE
   getRestaurantHours: (restaurantId: string): RestaurantHours[] => {
-    const rows = sqlite.prepare('SELECT * FROM restaurant_hours WHERE restaurantId = ?').all(restaurantId);
+    const rest = serverDb.getRestaurantById(restaurantId);
+    const targetId = rest ? rest.id : restaurantId;
+
+    const rows = sqlite.prepare('SELECT * FROM restaurant_hours WHERE restaurantId = ? ORDER BY dayOfWeek ASC').all(targetId);
     if (!rows || rows.length === 0) {
       // Seed missing hours for this restaurant from INITIAL_HOURS if available
-      const defaults = INITIAL_HOURS.filter(h => h.restaurantId === restaurantId);
+      const defaults = INITIAL_HOURS.filter(h => h.restaurantId === targetId);
       if (defaults.length > 0) {
         try {
           const insert = sqlite.prepare('INSERT OR IGNORE INTO restaurant_hours (id, restaurantId, dayOfWeek, openTime, closeTime, isClosed) VALUES (?, ?, ?, ?, ?, ?)');
           for (const h of defaults) {
-            insert.run(h.id, restaurantId, h.dayOfWeek, h.openTime, h.closeTime, h.isClosed ? 1 : 0);
+            insert.run(h.id, targetId, h.dayOfWeek, h.openTime, h.closeTime, h.isClosed ? 1 : 0);
           }
           return defaults;
         } catch (e) {
@@ -720,8 +739,8 @@ export const serverDb = {
       }
       // If no defaults exist, generate and seed standard 7-day operating hours so hours are NEVER missing
       const standardHours: RestaurantHours[] = [0, 1, 2, 3, 4, 5, 6].map(day => ({
-        id: `gen-hour-${restaurantId}-${day}`,
-        restaurantId,
+        id: `gen-hour-${targetId}-${day}`,
+        restaurantId: targetId,
         dayOfWeek: day,
         openTime: '11:30',
         closeTime: '23:00',
@@ -730,7 +749,7 @@ export const serverDb = {
       try {
         const insert = sqlite.prepare('INSERT OR IGNORE INTO restaurant_hours (id, restaurantId, dayOfWeek, openTime, closeTime, isClosed) VALUES (?, ?, ?, ?, ?, ?)');
         for (const h of standardHours) {
-          insert.run(h.id, restaurantId, h.dayOfWeek, h.openTime, h.closeTime, 0);
+          insert.run(h.id, targetId, h.dayOfWeek, h.openTime, h.closeTime, 0);
         }
       } catch (e) {}
       return standardHours;
@@ -739,11 +758,44 @@ export const serverDb = {
   },
 
   saveRestaurantHours: (restaurantId: string, hours: RestaurantHours[]) => {
-    sqlite.prepare('DELETE FROM restaurant_hours WHERE restaurantId = ?').run(restaurantId);
+    const rest = serverDb.getRestaurantById(restaurantId);
+    const targetId = rest ? rest.id : restaurantId;
+    sqlite.prepare('DELETE FROM restaurant_hours WHERE restaurantId = ?').run(targetId);
     const insert = sqlite.prepare('INSERT INTO restaurant_hours (id, restaurantId, dayOfWeek, openTime, closeTime, isClosed) VALUES (?, ?, ?, ?, ?, ?)');
     for (const h of hours) {
-      insert.run(h.id, restaurantId, h.dayOfWeek, h.openTime, h.closeTime, h.isClosed ? 1 : 0);
+      insert.run(h.id, targetId, h.dayOfWeek, h.openTime, h.closeTime, h.isClosed ? 1 : 0);
     }
+  },
+
+  // CLOSURES & SPECIAL HOLIDAYS
+  getRestaurantClosures: (restaurantId: string): RestaurantClosure[] => {
+    const rest = serverDb.getRestaurantById(restaurantId);
+    const targetId = rest ? rest.id : restaurantId;
+    try {
+      const rows = sqlite.prepare('SELECT * FROM restaurant_closures WHERE restaurantId = ?').all(targetId);
+      return rows || [];
+    } catch (e) {
+      return [];
+    }
+  },
+
+  getRestaurantClosure: (restaurantId: string, date: string): RestaurantClosure | null => {
+    const rest = serverDb.getRestaurantById(restaurantId);
+    const targetId = rest ? rest.id : restaurantId;
+    try {
+      const row = sqlite.prepare('SELECT * FROM restaurant_closures WHERE restaurantId = ? AND closureDate = ?').get(targetId, date);
+      return row ? (row as RestaurantClosure) : null;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  saveRestaurantClosure: (closure: RestaurantClosure) => {
+    try {
+      sqlite.prepare('INSERT OR REPLACE INTO restaurant_closures (id, restaurantId, closureDate, reason) VALUES (?, ?, ?, ?)').run(
+        closure.id, closure.restaurantId, closure.closureDate, closure.reason || null
+      );
+    } catch (e) {}
   },
 
   // RESERVATIONS & REAL DATABASE SLOT CAPACITY ENGINE
@@ -782,45 +834,177 @@ export const serverDb = {
     return row ? mapReservation(row) : null;
   },
 
-  checkSlotAvailability: (restaurantId: string, date: string, partySize: number): TimeSlotAvailability[] => {
+  getSlotAvailabilityDetails: (
+    restaurantId: string,
+    date: string,
+    partySize: number
+  ): SlotAvailabilityResponse => {
     const rest = serverDb.getRestaurantById(restaurantId);
-    if (!rest) return [];
+    if (!rest) {
+      return {
+        status: 'error',
+        message: `Restaurant with identifier "${restaurantId}" could not be found.`,
+        slots: [],
+        hours: null
+      };
+    }
 
-    // Parse YYYY-MM-DD cleanly into local year, month, day to avoid UTC shifts
-    const [year, month, day] = date.split('-').map(Number);
-    const dayOfWeek = (!isNaN(year) && !isNaN(month) && !isNaN(day)) 
-      ? new Date(year, month - 1, day).getDay() 
-      : new Date().getDay();
+    if (!date || typeof date !== 'string') {
+      return {
+        status: 'error',
+        message: 'A valid reservation date (YYYY-MM-DD) is required.',
+        slots: [],
+        hours: null,
+        restaurant: { id: rest.id, name: rest.name, slug: rest.slug, timezone: rest.timezone }
+      };
+    }
 
-    const hours = serverDb.getRestaurantHours(restaurantId);
+    // Normalize date format
+    const cleanDate = date.includes('T') ? date.split('T')[0] : date.trim();
+    const dateParts = cleanDate.split('-').map(Number);
+    if (dateParts.length !== 3 || dateParts.some(isNaN)) {
+      return {
+        status: 'error',
+        message: 'Invalid date format. Expected format: YYYY-MM-DD.',
+        slots: [],
+        hours: null,
+        restaurant: { id: rest.id, name: rest.name, slug: rest.slug, timezone: rest.timezone }
+      };
+    }
+
+    const [year, month, day] = dateParts;
+    // Calculate calendar day of week using UTC midday to prevent timezone shifts across systems
+    const targetDateUtc = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+    const dayOfWeek = targetDateUtc.getUTCDay();
+
+    // Check special holiday/closure
+    const closure = serverDb.getRestaurantClosure(rest.id, cleanDate);
+    if (closure) {
+      return {
+        status: 'closed',
+        message: closure.reason 
+          ? `${rest.name} is closed on ${cleanDate} (${closure.reason}).`
+          : 'This restaurant is closed on the selected date.',
+        slots: [],
+        hours: null,
+        restaurant: { id: rest.id, name: rest.name, slug: rest.slug, timezone: rest.timezone }
+      };
+    }
+
+    // Check opening hours for this day of week
+    const hours = serverDb.getRestaurantHours(rest.id);
     const dayHours = hours.find(h => h.dayOfWeek === dayOfWeek);
 
-    if (!dayHours || dayHours.isClosed) {
-      return [];
+    if (!dayHours) {
+      return {
+        status: 'missing_schedule',
+        message: `Opening hours have not been configured for this restaurant on ${DAY_NAMES[dayOfWeek]}.`,
+        slots: [],
+        hours: null,
+        restaurant: { id: rest.id, name: rest.name, slug: rest.slug, timezone: rest.timezone }
+      };
+    }
+
+    if (dayHours.isClosed) {
+      return {
+        status: 'closed',
+        message: 'This restaurant is closed on the selected date.',
+        slots: [],
+        hours: dayHours,
+        restaurant: { id: rest.id, name: rest.name, slug: rest.slug, timezone: rest.timezone }
+      };
+    }
+
+    if (!dayHours.openTime || !dayHours.closeTime) {
+      return {
+        status: 'missing_schedule',
+        message: 'Opening hours have not been configured for this restaurant.',
+        slots: [],
+        hours: dayHours,
+        restaurant: { id: rest.id, name: rest.name, slug: rest.slug, timezone: rest.timezone }
+      };
     }
 
     const openMinutes = timeToMinutes(dayHours.openTime);
-    const closeMinutes = timeToMinutes(dayHours.closeTime);
-    const slotDuration = rest.slotDurationMinutes || 90;
-
-    const slotTimes: string[] = [];
-    for (let m = openMinutes; m + slotDuration <= closeMinutes; m += 30) {
-      slotTimes.push(minutesToTime(m));
+    let closeMinutes = timeToMinutes(dayHours.closeTime);
+    // Overnight operating hours support (e.g. 17:00 to 02:00)
+    if (closeMinutes <= openMinutes) {
+      closeMinutes += 24 * 60;
     }
 
-    const tables = serverDb.getTables(restaurantId).filter(t => t.isActive);
-    const totalCapacity = rest.totalSeatingCapacity;
+    const slotDuration = rest.slotDurationMinutes || 90;
+    const intervalMinutes = 30; // standard 30 min intervals
 
-    // Fetch active reservations from the shared database
-    const dateReservations = serverDb.getReservations({ restaurantId }).filter(
-      r => r.reservationDate === date && r.status !== 'cancelled' && r.status !== 'no_show'
+    const slotTimes: string[] = [];
+    for (let m = openMinutes; m + slotDuration <= closeMinutes; m += intervalMinutes) {
+      slotTimes.push(minutesToTime(m % (24 * 60)));
+    }
+
+    if (slotTimes.length === 0) {
+      return {
+        status: 'no_slots',
+        message: 'No reservation times are available for this date. Please try another date.',
+        slots: [],
+        hours: dayHours,
+        restaurant: { id: rest.id, name: rest.name, slug: rest.slug, timezone: rest.timezone }
+      };
+    }
+
+    const tables = serverDb.getTables(rest.id).filter(t => t.isActive);
+    const totalCapacity = rest.totalSeatingCapacity || 40;
+
+    // Fetch active reservations for this calendar date
+    const dateReservations = serverDb.getReservations({ restaurantId: rest.id }).filter(
+      r => r.reservationDate === cleanDate && r.status !== 'cancelled' && r.status !== 'no_show'
     );
 
+    // Current local time at restaurant timezone
+    const restaurantTimezone = rest.timezone || 'America/New_York';
+    let isTodayAtRestaurant = false;
+    let currentRestaurantMinutes = -1;
+    try {
+      const nowFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: restaurantTimezone });
+      const todayInTz = nowFormatter.format(new Date());
+      isTodayAtRestaurant = (cleanDate === todayInTz);
+
+      const timeFormatter = new Intl.DateTimeFormat('en-GB', {
+        timeZone: restaurantTimezone,
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+      const timeParts = timeFormatter.format(new Date()).split(':').map(Number);
+      if (timeParts.length === 2 && !isNaN(timeParts[0]) && !isNaN(timeParts[1])) {
+        currentRestaurantMinutes = timeParts[0] * 60 + timeParts[1];
+      }
+    } catch (e) {
+      const now = new Date();
+      const localDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      isTodayAtRestaurant = (cleanDate === localDateStr);
+      currentRestaurantMinutes = now.getHours() * 60 + now.getMinutes();
+    }
+
+    const minLeadTimeBuffer = rest.bufferTimeMinutes || 15;
     const results: TimeSlotAvailability[] = [];
 
     for (const time of slotTimes) {
       const slotStart = timeToMinutes(time);
       const slotEnd = slotStart + slotDuration;
+
+      // Check if slot has already passed for today
+      if (isTodayAtRestaurant && currentRestaurantMinutes >= 0) {
+        if (slotStart < currentRestaurantMinutes + minLeadTimeBuffer) {
+          results.push({
+            time,
+            formattedTime: formatTime12h(time),
+            isAvailable: false,
+            reason: 'This reservation time has already passed for today.',
+            remainingSeats: 0,
+            maxPartyAllowed: 0
+          });
+          continue;
+        }
+      }
 
       const overlapping = dateReservations.filter(res => {
         const resStart = timeToMinutes(res.startTime);
@@ -850,10 +1034,10 @@ export const serverDb = {
           .filter(t => !occupiedTableIds.has(t.id) && t.capacity >= partySize)
           .sort((a, b) => a.capacity - b.capacity);
 
-        if (candidateTables.length === 0) {
+        if (tables.length > 0 && candidateTables.length === 0) {
           isAvailable = false;
           reason = `No single available table found with at least ${partySize} seats for this slot.`;
-        } else {
+        } else if (candidateTables.length > 0) {
           suggestedTableId = candidateTables[0].id;
         }
       }
@@ -869,7 +1053,22 @@ export const serverDb = {
       });
     }
 
-    return results;
+    const anyAvailable = results.some(s => s.isAvailable);
+
+    return {
+      status: anyAvailable ? 'available' : 'no_slots',
+      message: anyAvailable
+        ? 'Reservation slots available.'
+        : 'No reservation times are available for this date. Please try another date.',
+      slots: results,
+      hours: dayHours,
+      restaurant: { id: rest.id, name: rest.name, slug: rest.slug, timezone: rest.timezone }
+    };
+  },
+
+  checkSlotAvailability: (restaurantId: string, date: string, partySize: number): TimeSlotAvailability[] => {
+    const details = serverDb.getSlotAvailabilityDetails(restaurantId, date, partySize);
+    return details.slots;
   },
 
   // Real-time Cinema-Style Table & Seat Availability Engine
@@ -1041,10 +1240,43 @@ export const serverDb = {
       return { success: false, error: 'Restaurant not found.' };
     }
 
-    // Capacity verification against real disk database
-    const slots = serverDb.checkSlotAvailability(data.restaurantId, data.reservationDate, data.partySize);
-    const targetSlot = slots.find(s => s.time === data.startTime);
+    const reservationDate = (data.reservationDate || (data as any).date || '').trim();
+    if (!reservationDate) {
+      return { success: false, error: 'A valid reservation date (YYYY-MM-DD) is required.' };
+    }
+    const customerId = data.customerId || (data.customerEmail ? 'cust-' + data.customerEmail.toLowerCase().replace(/[^a-z0-9]/g, '') : `cust-${Date.now()}`);
+    data.reservationDate = reservationDate;
+    data.customerId = customerId;
 
+    // Server-side validation of party size
+    if (data.partySize < (restaurant.minPartySize || 1)) {
+      return { success: false, error: `Party size must be at least ${restaurant.minPartySize}.` };
+    }
+    if (data.partySize > (restaurant.maxPartySize || 20)) {
+      return { success: false, error: `Party size cannot exceed ${restaurant.maxPartySize}.` };
+    }
+
+    // Duplicate check: prevent duplicate active reservation for same customer + restaurant + date + time
+    const existingDuplicate = serverDb.getReservations({ restaurantId: restaurant.id, customerId: data.customerId }).find(
+      r => r.reservationDate === data.reservationDate && r.startTime === data.startTime && ['pending', 'confirmed'].includes(r.status)
+    );
+    if (existingDuplicate) {
+      return {
+        success: false,
+        error: `You already have an active booking (${existingDuplicate.bookingReference}) for this restaurant at ${data.startTime}.`
+      };
+    }
+
+    // Capacity & availability verification against real disk database
+    const availability = serverDb.getSlotAvailabilityDetails(restaurant.id, data.reservationDate, data.partySize);
+    if (availability.status !== 'available') {
+      return {
+        success: false,
+        error: availability.message || 'The restaurant is not accepting reservations on this date.'
+      };
+    }
+
+    const targetSlot = availability.slots.find(s => s.time === data.startTime);
     if (!targetSlot || !targetSlot.isAvailable) {
       return { 
         success: false, 
@@ -1597,6 +1829,8 @@ export const serverDb = {
 };
 
 // Helpers
+export const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
 export function timeToMinutes(timeStr: string): number {
   const [h, m] = timeStr.split(':').map(Number);
   return h * 60 + (m || 0);

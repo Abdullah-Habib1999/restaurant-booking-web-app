@@ -120,6 +120,7 @@ export interface Restaurant {
   status: RestaurantStatus;
   rating?: number;
   reviewCount?: number;
+  timezone?: string;
   createdAt: string;
 }
 
@@ -211,5 +212,26 @@ export interface ReviewStats {
   avgService?: number;
   avgAmbience?: number;
   avgValue?: number;
+}
+
+export type AvailabilityStatus = 
+  | 'loading' 
+  | 'available' 
+  | 'closed' 
+  | 'no_slots' 
+  | 'missing_schedule' 
+  | 'error';
+
+export interface SlotAvailabilityResponse {
+  status: AvailabilityStatus;
+  message: string;
+  slots: TimeSlotAvailability[];
+  hours?: RestaurantHours | null;
+  restaurant?: {
+    id: string;
+    name: string;
+    slug: string;
+    timezone?: string;
+  };
 }
 

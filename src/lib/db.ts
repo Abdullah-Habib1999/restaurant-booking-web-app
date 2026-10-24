@@ -11,7 +11,9 @@ import {
   ReservationStatus,
   TableSeatStatus,
   Review,
-  ReviewStats
+  ReviewStats,
+  AvailabilityStatus,
+  SlotAvailabilityResponse
 } from '@/types';
 import { 
   INITIAL_RESTAURANTS, 
@@ -393,46 +395,127 @@ export const db = {
   },
 
   // REAL CAPACITY & AVAILABILITY ENGINE (CROSS-USER LIVE DATABASE)
+  getSlotAvailabilityDetails: async (
+    restaurantId: string,
+    date: string,
+    partySize: number
+  ): Promise<SlotAvailabilityResponse> => {
+    const data = await apiFetch<any>(
+      `/api/slots?restaurantId=${encodeURIComponent(restaurantId)}&date=${encodeURIComponent(date)}&partySize=${partySize}`
+    );
+    if (data && typeof data === 'object') {
+      if (data.status && Array.isArray(data.slots)) {
+        return data as SlotAvailabilityResponse;
+      }
+      if (Array.isArray(data)) {
+        const anyAvail = data.some((s: any) => s.isAvailable);
+        return {
+          status: anyAvail ? 'available' : 'no_slots',
+          message: anyAvail ? 'Available' : 'No reservation times are available for this date.',
+          slots: data
+        };
+      }
+    }
+
+    // SSR / live client-side fallback if API is unreachable
+    const rest = memRestaurants.find(r => r.id === restaurantId || r.slug === restaurantId);
+    if (!rest) {
+      return {
+        status: 'error',
+        message: "We couldn't load availability. Please try again.",
+        slots: []
+      };
+    }
+
+    const cleanDate = date.includes('T') ? date.split('T')[0] : date.trim();
+    const dateParts = cleanDate.split('-').map(Number);
+    if (dateParts.length !== 3 || dateParts.some(isNaN)) {
+      return {
+        status: 'error',
+        message: 'Invalid reservation date format.',
+        slots: []
+      };
+    }
+
+    const [y, m, d] = dateParts;
+    const targetDateUtc = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+    const dayOfWeek = targetDateUtc.getUTCDay();
+
+    // Check special closure in memory
+    const closure = memClosures.find(c => (c.restaurantId === rest.id || c.restaurantId === restaurantId) && c.closureDate === cleanDate);
+    if (closure) {
+      return {
+        status: 'closed',
+        message: closure.reason ? `This restaurant is closed on ${cleanDate} (${closure.reason}).` : 'This restaurant is closed on the selected date.',
+        slots: []
+      };
+    }
+
+    const hours = await db.getRestaurantHours(rest.id);
+    const dayH = hours.find(h => h.dayOfWeek === dayOfWeek);
+
+    if (!dayH) {
+      return {
+        status: 'missing_schedule',
+        message: 'Opening hours have not been configured for this restaurant.',
+        slots: []
+      };
+    }
+
+    if (dayH.isClosed) {
+      return {
+        status: 'closed',
+        message: 'This restaurant is closed on the selected date.',
+        slots: [],
+        hours: dayH
+      };
+    }
+
+    const openM = timeToMinutes(dayH.openTime || '11:30');
+    let closeM = timeToMinutes(dayH.closeTime || '23:00');
+    if (closeM <= openM) {
+      closeM += 24 * 60;
+    }
+
+    const dur = rest.slotDurationMinutes || 90;
+    const slots: TimeSlotAvailability[] = [];
+
+    for (let min = openM; min + dur <= closeM; min += 30) {
+      const timeStr = minutesToTime(min % (24 * 60));
+      slots.push({
+        time: timeStr,
+        formattedTime: formatTime12h(timeStr),
+        isAvailable: true,
+        remainingSeats: rest.totalSeatingCapacity || 40,
+        maxPartyAllowed: rest.maxPartySize || 10
+      });
+    }
+
+    if (slots.length === 0) {
+      return {
+        status: 'no_slots',
+        message: 'No reservation times are available for this date. Please try another date.',
+        slots: [],
+        hours: dayH
+      };
+    }
+
+    return {
+      status: 'available',
+      message: 'Reservation slots available.',
+      slots,
+      hours: dayH,
+      restaurant: { id: rest.id, name: rest.name, slug: rest.slug }
+    };
+  },
+
   checkSlotAvailability: async (
     restaurantId: string,
     date: string,
     partySize: number
   ): Promise<TimeSlotAvailability[]> => {
-    const data = await apiFetch<TimeSlotAvailability[]>(
-      `/api/slots?restaurantId=${encodeURIComponent(restaurantId)}&date=${encodeURIComponent(date)}&partySize=${partySize}`
-    );
-    if (data && Array.isArray(data) && data.length > 0) {
-      return data;
-    }
-
-    // SSR / live fallback: calculate slots from restaurant hours
-    const rest = memRestaurants.find(r => r.id === restaurantId);
-    const hours = await db.getRestaurantHours(restaurantId);
-    const [y, m, d] = date.split('-').map(Number);
-    const dayOfWeek = (!isNaN(y) && !isNaN(m) && !isNaN(d)) ? new Date(y, m - 1, d).getDay() : new Date().getDay();
-    const dayH = hours.find(h => h.dayOfWeek === dayOfWeek);
-
-    if (!dayH || dayH.isClosed) {
-      return [];
-    }
-
-    const openM = timeToMinutes(dayH.openTime || '11:30');
-    const closeM = timeToMinutes(dayH.closeTime || '23:00');
-    const dur = rest?.slotDurationMinutes || 90;
-    const slots: TimeSlotAvailability[] = [];
-
-    for (let min = openM; min + dur <= closeM; min += 30) {
-      const timeStr = minutesToTime(min);
-      slots.push({
-        time: timeStr,
-        formattedTime: formatTime12h(timeStr),
-        isAvailable: true,
-        remainingSeats: rest?.totalSeatingCapacity || 40,
-        maxPartyAllowed: rest?.maxPartySize || 10
-      });
-    }
-
-    return slots;
+    const details = await db.getSlotAvailabilityDetails(restaurantId, date, partySize);
+    return details.slots;
   },
 
   // CREATE RESERVATION (CALLS SERVER DB ATOMICALLY)

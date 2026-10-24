@@ -14,8 +14,9 @@ export async function GET(request: NextRequest) {
     const items = serverDb.getMenuItems(restaurantId);
     const tables = serverDb.getTables(restaurantId);
     const hours = serverDb.getRestaurantHours(restaurantId);
+    const closures = serverDb.getRestaurantClosures(restaurantId);
 
-    return NextResponse.json({ categories, items, tables, hours });
+    return NextResponse.json({ categories, items, tables, hours, closures });
   } catch (err: any) {
     if (err?.digest?.startsWith('NEXT_')) throw err;
     console.error('API /api/restaurant-data GET error:', err);
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action, table, category, menuItem, hours, restaurantId, tableId, categoryId, menuItemId } = body;
+    const { action, table, category, menuItem, hours, closure, restaurantId, tableId, categoryId, menuItemId } = body;
 
     switch (action) {
       case 'saveTable':
@@ -46,6 +47,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true });
       case 'saveHours':
         serverDb.saveRestaurantHours(restaurantId, hours);
+        return NextResponse.json({ success: true });
+      case 'saveClosure':
+        if (closure) serverDb.saveRestaurantClosure(closure);
         return NextResponse.json({ success: true });
       default:
         return NextResponse.json({ error: 'Invalid action specified' }, { status: 400 });

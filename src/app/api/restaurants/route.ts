@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
     const restaurants = serverDb.getRestaurants();
     return NextResponse.json(restaurants);
   } catch (err: any) {
+    if (err?.digest?.startsWith('NEXT_')) throw err;
     console.error('API /api/restaurants GET error:', err);
     return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });
   }

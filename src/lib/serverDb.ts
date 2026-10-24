@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { 
   Restaurant, 
   DiningTable, 
@@ -22,21 +23,53 @@ import {
   INITIAL_HOURS, 
   INITIAL_MENU_CATEGORIES, 
   INITIAL_MENU_ITEMS, 
-  INITIAL_RESERVATIONS 
+  INITIAL_RESERVATIONS,
+  INITIAL_REVIEWS
 } from '@/data/seed';
 
 // Memory map for cinema-style temporary seat holds with automatic expiration
 const seatHolds = new Map<string, { token: string; expiresAt: number }>();
 
-// Ensure data folder exists
-const dbDir = path.join(process.cwd(), 'data');
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
+// Safe SQLite initialization that works reliably across local Windows, Linux, and Vercel/serverless environments
+function initSqliteDatabase(): any {
+  const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+  const candidateDirs: string[] = [];
+
+  if (isServerless) {
+    candidateDirs.push(path.join('/tmp', 'tablereserve-data'), path.join(os.tmpdir(), 'tablereserve-data'));
+  } else {
+    candidateDirs.push(path.join(process.cwd(), 'data'), path.join(os.tmpdir(), 'tablereserve-data'));
+  }
+
+  for (const dir of candidateDirs) {
+    try {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      const dbPath = path.join(dir, 'tablereserve.db');
+      const db = new Database(dbPath);
+      try {
+        db.pragma('journal_mode = WAL');
+      } catch (walErr) {
+        // WAL mode not supported on some virtual filesystems, continue with default journal
+      }
+      return db;
+    } catch (err) {
+      console.warn(`[serverDb] Could not initialize SQLite in ${dir}:`, err);
+    }
+  }
+
+  try {
+    console.warn('[serverDb] Using in-memory SQLite database as resilient fallback.');
+    return new Database(':memory:');
+  } catch (err) {
+    console.error('[serverDb] Critical: Failed to create in-memory SQLite database:', err);
+    throw err;
+  }
 }
 
-const dbPath = path.join(dbDir, 'tablereserve.db');
-const sqlite = new Database(dbPath);
-sqlite.pragma('journal_mode = WAL'); // High performance concurrency
+const sqlite = initSqliteDatabase();
+
 
 // Initialize SQL tables
 sqlite.exec(`
@@ -382,85 +415,80 @@ if (userCount === 0) {
 
 // Seed completed reservations & verified initial reviews if not yet present
 try {
-  const compCount = (sqlite.prepare("SELECT COUNT(*) as count FROM reservations WHERE status = 'completed'").get() as { count: number }).count;
-  if (compCount === 0) {
-    const insertRes = sqlite.prepare(`
-      INSERT OR IGNORE INTO reservations (
-        id, bookingReference, restaurantId, restaurantName, restaurantSlug, customerId,
-        customerName, customerEmail, customerPhone, partySize, reservationDate, startTime,
-        endTime, status, assignedTableId, assignedTableName, specialRequests, orderSubtotal,
-        orderTax, estimatedTotal, items, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    insertRes.run(
-      'res-comp-1', 'LT-COMP-01', 'rest-1', 'L’Osteria Terracotta', 'losteria-terracotta',
-      'cust-1', 'Eleanor Vance', 'customer@demo.com', '+1 (555) 234-9988', 2,
-      '2026-10-18', '19:30', '21:00', 'completed', 'tab-101', 'T-01 (Cap: 2)',
-      'Anniversary dinner', 84.50, 7.50, 92.00, '[]',
-      new Date(Date.now() - 3600000 * 96).toISOString(),
-      new Date(Date.now() - 3600000 * 96).toISOString()
-    );
-
-    insertRes.run(
-      'res-comp-2', 'LT-COMP-02', 'rest-1', 'L’Osteria Terracotta', 'losteria-terracotta',
-      'cust-2', 'Marcus Wright', 'marcus.w@example.com', '+1 (555) 777-4321', 4,
-      '2026-10-19', '20:00', '21:30', 'completed', 'tab-103', 'T-03 (Cap: 4)',
-      'Business gathering', 142.00, 12.60, 154.60, '[]',
-      new Date(Date.now() - 3600000 * 72).toISOString(),
-      new Date(Date.now() - 3600000 * 72).toISOString()
-    );
-
-    insertRes.run(
-      'res-comp-3', 'SS-COMP-01', 'rest-2', 'Saffron & Silk Bistro', 'saffron-and-silk-bistro',
-      'cust-1', 'Eleanor Vance', 'customer@demo.com', '+1 (555) 234-9988', 2,
-      '2026-10-17', '19:00', '20:30', 'completed', 'tab-201', 'S-01 (Cap: 2)',
-      'Window view requested', 72.00, 6.40, 78.40, '[]',
-      new Date(Date.now() - 3600000 * 120).toISOString(),
-      new Date(Date.now() - 3600000 * 120).toISOString()
-    );
-
-    insertRes.run(
-      'res-comp-4', 'LT-COMP-03', 'rest-1', 'L’Osteria Terracotta', 'losteria-terracotta',
-      'cust-1', 'Eleanor Vance', 'customer@demo.com', '+1 (555) 234-9988', 3,
-      '2026-10-21', '18:30', '20:00', 'completed', 'tab-102', 'T-02 (Cap: 4)',
-      'Family dinner', 115.00, 10.20, 125.20, '[]',
-      new Date(Date.now() - 3600000 * 24).toISOString(),
-      new Date(Date.now() - 3600000 * 24).toISOString()
-    );
+  // Ensure all reviewer customer accounts exist in users table so foreign keys succeed
+  const insertUser = sqlite.prepare(`
+    INSERT OR IGNORE INTO users (id, email, fullName, phone, role, password, ownedRestaurantId, createdAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const seedCustomers = [
+    { id: 'cust-1', email: 'customer@demo.com', fullName: 'Eleanor Vance', phone: '+1 (555) 234-9988' },
+    { id: 'cust-2', email: 'marcus.w@example.com', fullName: 'Marcus Wright', phone: '+1 (555) 777-4321' },
+    { id: 'cust-3', email: 'sophia.l@example.com', fullName: 'Sophia Lorenzi', phone: '+1 (555) 665-8833' },
+    { id: 'cust-4', email: 'david.patel@example.com', fullName: 'David K. Patel', phone: '+1 (555) 332-9911' },
+    { id: 'cust-5', email: 'kenji.t@example.com', fullName: 'Kenji Takahashi', phone: '+1 (555) 441-2090' },
+    { id: 'cust-6', email: 'chloe.b@example.com', fullName: 'Chloe Bennett', phone: '+1 (555) 998-1122' }
+  ];
+  for (const c of seedCustomers) {
+    try {
+      insertUser.run(c.id, c.email, c.fullName, c.phone, 'customer', 'password123', null, new Date().toISOString());
+    } catch (e) {}
   }
 
-  const revCount = (sqlite.prepare('SELECT COUNT(*) as count FROM reviews').get() as { count: number }).count;
-  if (revCount === 0) {
-    const insertRev = sqlite.prepare(`
-      INSERT OR IGNORE INTO reviews (
-        id, restaurantId, customerId, customerName, customerEmail, reservationId,
-        overallRating, foodRating, serviceRating, ambienceRating, valueRating,
-        comment, tags, ownerResponse, ownerRespondedAt, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+  const insertRes = sqlite.prepare(`
+    INSERT OR IGNORE INTO reservations (
+      id, bookingReference, restaurantId, restaurantName, restaurantSlug, customerId,
+      customerName, customerEmail, customerPhone, partySize, reservationDate, startTime,
+      endTime, status, assignedTableId, assignedTableName, specialRequests, orderSubtotal,
+      orderTax, estimatedTotal, items, createdAt, updatedAt
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
 
-    insertRev.run(
-      'rev-101', 'rest-1', 'cust-2', 'Marcus Wright', 'marcus.w@example.com', 'res-comp-2',
-      5, 5, 5, 5, 4,
-      'Outstanding wood-fired pinsa and the black truffle tagliolini was divine. The wine cellar recommendation was sublime.',
-      JSON.stringify(['Excellent Food', 'Friendly Staff', 'Great Ambience']),
-      'Thank you Marcus! It was an absolute delight hosting your team at L’Osteria. We look forward to seeing you again soon.',
-      new Date(Date.now() - 3600000 * 48).toISOString(),
-      new Date(Date.now() - 3600000 * 60).toISOString(),
-      new Date(Date.now() - 3600000 * 60).toISOString()
-    );
+  const completedResList = [
+    ['res-comp-1', 'LT-COMP-01', 'rest-1', 'L’Osteria Terracotta', 'losteria-terracotta', 'cust-1', 'Eleanor Vance', 'customer@demo.com', '+1 (555) 234-9988', 2, '2026-10-18', '19:30', '21:00', 'completed', 'tab-101', 'T-01 (Cap: 2)', 'Anniversary dinner', 84.50, 7.50, 92.00, '[]', new Date(Date.now() - 3600000 * 96).toISOString(), new Date(Date.now() - 3600000 * 96).toISOString()],
+    ['res-comp-2', 'LT-COMP-02', 'rest-1', 'L’Osteria Terracotta', 'losteria-terracotta', 'cust-2', 'Marcus Wright', 'marcus.w@example.com', '+1 (555) 777-4321', 4, '2026-10-19', '20:00', '21:30', 'completed', 'tab-103', 'T-03 (Cap: 4)', 'Business gathering', 142.00, 12.60, 154.60, '[]', new Date(Date.now() - 3600000 * 72).toISOString(), new Date(Date.now() - 3600000 * 72).toISOString()],
+    ['res-comp-3', 'SS-COMP-01', 'rest-2', 'Saffron & Silk Bistro', 'saffron-and-silk-bistro', 'cust-1', 'Eleanor Vance', 'customer@demo.com', '+1 (555) 234-9988', 2, '2026-10-17', '19:00', '20:30', 'completed', 'tab-201', 'S-01 (Cap: 2)', 'Window view requested', 72.00, 6.40, 78.40, '[]', new Date(Date.now() - 3600000 * 120).toISOString(), new Date(Date.now() - 3600000 * 120).toISOString()],
+    ['res-comp-4', 'LT-COMP-03', 'rest-1', 'L’Osteria Terracotta', 'losteria-terracotta', 'cust-1', 'Eleanor Vance', 'customer@demo.com', '+1 (555) 234-9988', 3, '2026-10-21', '18:30', '20:00', 'completed', 'tab-102', 'T-02 (Cap: 4)', 'Family dinner', 115.00, 10.20, 125.20, '[]', new Date(Date.now() - 3600000 * 24).toISOString(), new Date(Date.now() - 3600000 * 24).toISOString()],
+    ['res-comp-5', 'SS-COMP-02', 'rest-2', 'Saffron & Silk Bistro', 'saffron-and-silk-bistro', 'cust-4', 'David K. Patel', 'david.patel@example.com', '+1 (555) 332-9911', 4, '2026-10-14', '19:30', '21:00', 'completed', 'tab-203', 'S-03 (Cap: 4)', 'Dinner meeting', 98.00, 8.70, 106.70, '[]', new Date(Date.now() - 3600000 * 140).toISOString(), new Date(Date.now() - 3600000 * 140).toISOString()],
+    ['res-comp-6', 'KR-COMP-01', 'rest-3', 'Kanso Robata & Botanical Bar', 'kanso-robata-bar', 'cust-5', 'Kenji Takahashi', 'kenji.t@example.com', '+1 (555) 441-2090', 2, '2026-10-20', '20:00', '21:30', 'completed', null, 'Chef Counter', 'Robata counter seating', 160.00, 14.20, 174.20, '[]', new Date(Date.now() - 3600000 * 30).toISOString(), new Date(Date.now() - 3600000 * 30).toISOString()],
+    ['res-comp-7', 'KR-COMP-02', 'rest-3', 'Kanso Robata & Botanical Bar', 'kanso-robata-bar', 'cust-6', 'Chloe Bennett', 'chloe.b@example.com', '+1 (555) 998-1122', 2, '2026-10-19', '19:00', '20:45', 'completed', null, 'Garden Hearth', 'Birthday celebration', 185.00, 16.40, 201.40, '[]', new Date(Date.now() - 3600000 * 50).toISOString(), new Date(Date.now() - 3600000 * 50).toISOString()]
+  ];
 
-    insertRev.run(
-      'rev-102', 'rest-2', 'cust-1', 'Eleanor Vance', 'customer@demo.com', 'res-comp-3',
-      5, 5, 4, 5, 5,
-      'The 24-hour slow simmered Dal and Dum Pukht mutton biryani were breathtakingly authentic. Ambient warm lighting made for an enchanting evening.',
-      JSON.stringify(['Excellent Food', 'Great Ambience', 'Good Value']),
-      'Thank you Eleanor! Delighted you enjoyed the Awadhi culinary craft. Warm regards from our kitchen brigade.',
-      new Date(Date.now() - 3600000 * 70).toISOString(),
-      new Date(Date.now() - 3600000 * 90).toISOString(),
-      new Date(Date.now() - 3600000 * 90).toISOString()
-    );
+  for (const row of completedResList) {
+    try {
+      insertRes.run(...row);
+    } catch (e) {}
+  }
+
+  const insertRev = sqlite.prepare(`
+    INSERT OR IGNORE INTO reviews (
+      id, restaurantId, customerId, customerName, customerEmail, reservationId,
+      overallRating, foodRating, serviceRating, ambienceRating, valueRating,
+      comment, tags, ownerResponse, ownerRespondedAt, createdAt, updatedAt
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  for (const rev of INITIAL_REVIEWS) {
+    try {
+      insertRev.run(
+        rev.id,
+        rev.restaurantId,
+        rev.customerId,
+        rev.customerName,
+        rev.customerEmail || null,
+        rev.reservationId,
+        rev.overallRating,
+        rev.foodRating || null,
+        rev.serviceRating || null,
+        rev.ambienceRating || null,
+        rev.valueRating || null,
+        rev.comment || null,
+        rev.tags ? JSON.stringify(rev.tags) : null,
+        rev.ownerResponse || null,
+        rev.ownerRespondedAt || null,
+        rev.createdAt,
+        rev.updatedAt
+      );
+    } catch (e) {}
   }
 } catch (e) {}
 
@@ -474,8 +502,10 @@ try {
       FROM reviews WHERE restaurantId = ?
     `).get(r.id) as { count: number; avgRating: number | null };
     const realCount = revStats?.count || 0;
-    const realRating = realCount > 0 ? Number((revStats.avgRating || 0).toFixed(1)) : 0;
-    sqlite.prepare('UPDATE restaurants SET rating = ?, reviewCount = ? WHERE id = ?').run(realRating, realCount, r.id);
+    if (realCount > 0) {
+      const realRating = Number((revStats.avgRating || 0).toFixed(1));
+      sqlite.prepare('UPDATE restaurants SET rating = ?, reviewCount = ? WHERE id = ?').run(realRating, realCount, r.id);
+    }
   }
 } catch (e) {}
 
@@ -688,7 +718,22 @@ export const serverDb = {
           return defaults;
         }
       }
-      return [];
+      // If no defaults exist, generate and seed standard 7-day operating hours so hours are NEVER missing
+      const standardHours: RestaurantHours[] = [0, 1, 2, 3, 4, 5, 6].map(day => ({
+        id: `gen-hour-${restaurantId}-${day}`,
+        restaurantId,
+        dayOfWeek: day,
+        openTime: '11:30',
+        closeTime: '23:00',
+        isClosed: false
+      }));
+      try {
+        const insert = sqlite.prepare('INSERT OR IGNORE INTO restaurant_hours (id, restaurantId, dayOfWeek, openTime, closeTime, isClosed) VALUES (?, ?, ?, ?, ?, ?)');
+        for (const h of standardHours) {
+          insert.run(h.id, restaurantId, h.dayOfWeek, h.openTime, h.closeTime, 0);
+        }
+      } catch (e) {}
+      return standardHours;
     }
     return rows.map((r: any) => ({ ...r, isClosed: Boolean(r.isClosed) }));
   },

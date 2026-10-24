@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ categories, items, tables, hours });
   } catch (err: any) {
+    if (err?.digest?.startsWith('NEXT_')) throw err;
     console.error('API /api/restaurant-data GET error:', err);
     return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });
   }

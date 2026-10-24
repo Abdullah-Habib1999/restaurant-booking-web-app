@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(reviews);
   } catch (err: any) {
+    if (err?.digest?.startsWith('NEXT_')) throw err;
     console.error('API /api/reviews GET error:', err);
     return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });
   }

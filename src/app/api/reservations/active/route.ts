@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
     const activeBooking = serverDb.getActiveBookingForCustomer(restaurantId, customerId, date);
     return NextResponse.json({ activeBooking });
   } catch (err: any) {
+    if (err?.digest?.startsWith('NEXT_')) throw err;
     console.error('API /api/reservations/active GET error:', err);
     return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });
   }

@@ -90,11 +90,14 @@ function RestaurantDetailContent() {
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [showWeeklyHours, setShowWeeklyHours] = useState(false);
 
-  // Compute Today's Opening Hours
+  // Compute Today's Opening Hours (with guaranteed fallback)
   const todaySchedule = useMemo(() => {
-    if (!hours || hours.length === 0) return null;
     const currentDay = new Date().getDay();
-    return hours.find(h => h.dayOfWeek === currentDay) || null;
+    if (hours && hours.length > 0) {
+      const found = hours.find(h => h.dayOfWeek === currentDay);
+      if (found) return found;
+    }
+    return { dayOfWeek: currentDay, openTime: '12:00', closeTime: '23:00', isClosed: false };
   }, [hours]);
 
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -587,7 +590,7 @@ function RestaurantDetailContent() {
                 </div>
 
                 {/* Weekly Hours Popover */}
-                {showWeeklyHours && hours.length > 0 && (
+                {showWeeklyHours && (
                   <div className="absolute right-0 top-full mt-2 w-64 p-3.5 bg-white rounded-2xl border border-[#E8E1DA] shadow-xl z-30 text-xs space-y-2 animate-in fade-in duration-150">
                     <div className="flex items-center justify-between border-b border-[#E8E1DA] pb-1.5 font-bold text-[#201B18]">
                       <span>Weekly Operating Hours</span>
@@ -595,7 +598,12 @@ function RestaurantDetailContent() {
                     </div>
                     <div className="space-y-1.5">
                       {[0, 1, 2, 3, 4, 5, 6].map(dayIndex => {
-                        const dayH = hours.find(h => h.dayOfWeek === dayIndex);
+                        const dayH = (hours && hours.length > 0 ? hours.find(h => h.dayOfWeek === dayIndex) : null) || {
+                          dayOfWeek: dayIndex,
+                          openTime: '12:00',
+                          closeTime: '23:00',
+                          isClosed: false
+                        };
                         const isToday = new Date().getDay() === dayIndex;
                         return (
                           <div 

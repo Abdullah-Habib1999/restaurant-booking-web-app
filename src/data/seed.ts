@@ -1,4 +1,4 @@
-import { Restaurant, DiningTable, MenuCategory, MenuItem, Reservation, RestaurantHours } from '@/types';
+import { Restaurant, DiningTable, MenuCategory, MenuItem, Reservation, RestaurantHours, Review } from '@/types';
 
 export const INITIAL_RESTAURANTS: Restaurant[] = [
   {
@@ -400,3 +400,153 @@ export const INITIAL_RESERVATIONS: Reservation[] = [
     updatedAt: new Date(Date.now() - 3600000 * 48).toISOString()
   }
 ];
+
+export const INITIAL_REVIEWS: Review[] = [
+  // L’Osteria Terracotta (rest-1)
+  {
+    id: 'rev-101',
+    restaurantId: 'rest-1',
+    customerId: 'cust-2',
+    customerName: 'Marcus Wright',
+    customerEmail: 'marcus.w@example.com',
+    reservationId: 'res-comp-2',
+    overallRating: 5,
+    foodRating: 5,
+    serviceRating: 5,
+    ambienceRating: 5,
+    valueRating: 4,
+    comment: 'Outstanding wood-fired pinsa and the black truffle tagliolini was divine. The wine cellar recommendation was sublime.',
+    tags: ['Excellent Food', 'Friendly Staff', 'Great Ambience'],
+    ownerResponse: 'Thank you Marcus! It was an absolute delight hosting your team at L’Osteria. We look forward to seeing you again soon.',
+    ownerRespondedAt: new Date(Date.now() - 3600000 * 48).toISOString(),
+    createdAt: new Date(Date.now() - 3600000 * 60).toISOString(),
+    updatedAt: new Date(Date.now() - 3600000 * 60).toISOString(),
+    visitDate: '2026-10-19',
+    partySize: 4
+  },
+  {
+    id: 'rev-102',
+    restaurantId: 'rest-1',
+    customerId: 'cust-1',
+    customerName: 'Eleanor Vance',
+    customerEmail: 'customer@demo.com',
+    reservationId: 'res-comp-1',
+    overallRating: 5,
+    foodRating: 5,
+    serviceRating: 5,
+    ambienceRating: 5,
+    valueRating: 5,
+    comment: 'The burrata was unbelievably fresh and the Fiorentina steak grilled over oak embers was cooked to absolute perfection. One of the best Italian meals in the city!',
+    tags: ['Excellent Food', 'Great Ambience', 'Good Value'],
+    ownerResponse: 'Grazie mille Eleanor! Chef Marco Bellini and our dining room team are thrilled you enjoyed the authentic embers grill.',
+    ownerRespondedAt: new Date(Date.now() - 3600000 * 72).toISOString(),
+    createdAt: new Date(Date.now() - 3600000 * 96).toISOString(),
+    updatedAt: new Date(Date.now() - 3600000 * 96).toISOString(),
+    visitDate: '2026-10-18',
+    partySize: 2
+  },
+  {
+    id: 'rev-103',
+    restaurantId: 'rest-1',
+    customerId: 'cust-3',
+    customerName: 'Sophia Lorenzi',
+    customerEmail: 'sophia.l@example.com',
+    reservationId: 'res-comp-4',
+    overallRating: 4,
+    foodRating: 5,
+    serviceRating: 4,
+    ambienceRating: 5,
+    valueRating: 4,
+    comment: 'Charming candlelit atmosphere with soft jazz in the background. The wild boar pappardelle has remarkable depth of flavor. Highly recommended for couples.',
+    tags: ['Great Ambience', 'Excellent Food', 'Friendly Staff'],
+    createdAt: new Date(Date.now() - 3600000 * 120).toISOString(),
+    updatedAt: new Date(Date.now() - 3600000 * 120).toISOString(),
+    visitDate: '2026-10-15',
+    partySize: 2
+  },
+
+  // Saffron & Silk Bistro (rest-2)
+  {
+    id: 'rev-201',
+    restaurantId: 'rest-2',
+    customerId: 'cust-1',
+    customerName: 'Eleanor Vance',
+    customerEmail: 'customer@demo.com',
+    reservationId: 'res-comp-3',
+    overallRating: 5,
+    foodRating: 5,
+    serviceRating: 4,
+    ambienceRating: 5,
+    valueRating: 5,
+    comment: 'The 24-hour slow simmered Dal and Dum Pukht mutton biryani were breathtakingly authentic. Ambient warm lighting made for an enchanting evening.',
+    tags: ['Excellent Food', 'Great Ambience', 'Good Value'],
+    ownerResponse: 'Thank you Eleanor! Delighted you enjoyed the Awadhi culinary craft. Warm regards from our kitchen brigade.',
+    ownerRespondedAt: new Date(Date.now() - 3600000 * 70).toISOString(),
+    createdAt: new Date(Date.now() - 3600000 * 90).toISOString(),
+    updatedAt: new Date(Date.now() - 3600000 * 90).toISOString(),
+    visitDate: '2026-10-17',
+    partySize: 2
+  },
+  {
+    id: 'rev-202',
+    restaurantId: 'rest-2',
+    customerId: 'cust-4',
+    customerName: 'David K. Patel',
+    customerEmail: 'david.patel@example.com',
+    reservationId: 'res-comp-5',
+    overallRating: 5,
+    foodRating: 5,
+    serviceRating: 5,
+    ambienceRating: 5,
+    valueRating: 4,
+    comment: 'The Galouti kababs literally melt away on the palate. Pre-ordering through the website made our arrival completely seamless — dishes arrived piping hot within 5 minutes.',
+    tags: ['Excellent Food', 'Fast Service', 'Friendly Staff'],
+    createdAt: new Date(Date.now() - 3600000 * 140).toISOString(),
+    updatedAt: new Date(Date.now() - 3600000 * 140).toISOString(),
+    visitDate: '2026-10-14',
+    partySize: 4
+  },
+
+  // Kanso Robata & Botanical Bar (rest-3)
+  {
+    id: 'rev-301',
+    restaurantId: 'rest-3',
+    customerId: 'cust-5',
+    customerName: 'Kenji Takahashi',
+    customerEmail: 'kenji.t@example.com',
+    reservationId: 'res-comp-6',
+    overallRating: 5,
+    foodRating: 5,
+    serviceRating: 5,
+    ambienceRating: 5,
+    valueRating: 5,
+    comment: 'The Binchotan charcoal grill imparts an unmatched aroma to the Hokkaido scallops and A5 Wagyu. Botanical tea-infused mocktails were sensational.',
+    tags: ['Excellent Food', 'Great Ambience', 'Friendly Staff'],
+    ownerResponse: 'Domo arigato Kenji-san! We pride ourselves on the integrity of our charcoal hearth and seasonal imports.',
+    ownerRespondedAt: new Date(Date.now() - 3600000 * 20).toISOString(),
+    createdAt: new Date(Date.now() - 3600000 * 30).toISOString(),
+    updatedAt: new Date(Date.now() - 3600000 * 30).toISOString(),
+    visitDate: '2026-10-20',
+    partySize: 2
+  },
+  {
+    id: 'rev-302',
+    restaurantId: 'rest-3',
+    customerId: 'cust-6',
+    customerName: 'Chloe Bennett',
+    customerEmail: 'chloe.b@example.com',
+    reservationId: 'res-comp-7',
+    overallRating: 5,
+    foodRating: 5,
+    serviceRating: 5,
+    ambienceRating: 5,
+    valueRating: 4,
+    comment: 'Architectural masterpiece. Clean lines, tranquil atmosphere, and the sashimi presentation was high art. Worth every penny for special occasions.',
+    tags: ['Great Ambience', 'Excellent Food', 'Good Value'],
+    createdAt: new Date(Date.now() - 3600000 * 50).toISOString(),
+    updatedAt: new Date(Date.now() - 3600000 * 50).toISOString(),
+    visitDate: '2026-10-19',
+    partySize: 2
+  }
+];
+

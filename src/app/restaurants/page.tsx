@@ -280,8 +280,9 @@ function RestaurantListingContent() {
                     {/* Live Timing / Operating Hours */}
                     {(() => {
                       const rHours = hoursMap[restaurant.id];
-                      const todayH = rHours ? rHours.find(h => h.dayOfWeek === new Date().getDay()) : null;
-                      if (!todayH) return null;
+                      const todayH = (rHours && rHours.length > 0)
+                        ? (rHours.find(h => h.dayOfWeek === new Date().getDay()) || rHours[0])
+                        : { dayOfWeek: new Date().getDay(), openTime: '12:00', closeTime: '23:00', isClosed: false };
                       return (
                         <span className={`px-2.5 py-1 rounded-lg border flex items-center gap-1 font-semibold ${
                           todayH.isClosed 

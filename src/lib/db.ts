@@ -34,8 +34,14 @@ async function apiFetch<T>(endpoint: string, options?: RequestInit): Promise<T |
     if (!isBrowser) {
       if (process.env.NEXT_PUBLIC_APP_URL) {
         baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+      } else if (process.env.URL) {
+        baseUrl = process.env.URL;
+      } else if (process.env.DEPLOY_PRIME_URL) {
+        baseUrl = process.env.DEPLOY_PRIME_URL;
       } else if (process.env.VERCEL_URL) {
         baseUrl = `https://${process.env.VERCEL_URL}`;
+      } else if (process.env.NODE_ENV === 'production') {
+        baseUrl = 'https://restaurant-booking-web-app.netlify.app';
       } else {
         baseUrl = 'http://localhost:3000';
       }

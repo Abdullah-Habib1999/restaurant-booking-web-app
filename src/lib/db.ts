@@ -46,10 +46,17 @@ async function apiFetch<T>(endpoint: string, options?: RequestInit): Promise<T |
         baseUrl = 'http://localhost:3000';
       }
     }
+    let activeUserId: string | null = null;
+    if (isBrowser) {
+      try {
+        activeUserId = localStorage.getItem('restro_active_user_id');
+      } catch {}
+    }
     const res = await fetch(`${baseUrl}${endpoint}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        ...(activeUserId ? { 'x-user-id': activeUserId } : {}),
         ...(options?.headers || {})
       },
       cache: 'no-store'

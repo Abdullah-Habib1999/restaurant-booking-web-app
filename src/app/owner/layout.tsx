@@ -121,7 +121,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
 
         {/* Bottom Actions */}
         <div className="pt-6 border-t border-[#332A25] mt-6 space-y-2">
-          {activeRestaurant?.slug && (
+          {activeRestaurant?.slug && activeRestaurant.status === 'published' ? (
             <Link
               href={`/restaurants/${activeRestaurant.slug}`}
               target="_blank"
@@ -130,6 +130,11 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
               <span>Live Diner View</span>
               <ExternalLink className="w-3.5 h-3.5" />
             </Link>
+          ) : (
+            <div className="flex items-center justify-between text-[11px] text-[#8D8178] py-2 px-3 rounded-xl bg-[#151311] border border-[#332A25]">
+              <span>Diner View (Approval Req.)</span>
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+            </div>
           )}
 
           <button
@@ -147,7 +152,63 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
       </aside>
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 p-4 sm:p-8 lg:p-10 max-w-7xl overflow-x-hidden">
+      <main className="flex-1 p-4 sm:p-8 lg:p-10 max-w-7xl overflow-x-hidden space-y-6">
+        
+        {/* Persistent Approval Status Banners for Owner */}
+        {activeRestaurant && activeRestaurant.status === 'pending_approval' && (
+          <div className="p-4 sm:p-5 rounded-2xl bg-[#1C1917] border border-amber-500/40 shadow-xl space-y-2">
+            <div className="flex items-center gap-2.5 text-amber-400 font-bold text-xs uppercase tracking-wider">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+              <span>Registration Status: Awaiting Administrative Approval</span>
+            </div>
+            <p className="text-xs text-amber-100/90 leading-relaxed">
+              Your restaurant registration is awaiting admin approval. Diners cannot yet view your profile or complete reservations. You can configure your menus and tables in the meantime.
+            </p>
+          </div>
+        )}
+
+        {activeRestaurant && activeRestaurant.status === 'rejected' && (
+          <div className="p-4 sm:p-5 rounded-2xl bg-rose-950/30 border border-rose-500/40 shadow-xl space-y-2.5">
+            <div className="flex items-center gap-2.5 text-rose-400 font-bold text-xs uppercase tracking-wider">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-400" />
+              <span>Registration Status: Application Declined</span>
+            </div>
+            <p className="text-xs text-rose-100/90 leading-relaxed">
+              Your restaurant registration was not approved.
+            </p>
+            {activeRestaurant.rejectionReason && (
+              <div className="p-3 rounded-xl bg-black/40 border border-rose-500/20 text-xs text-rose-200">
+                <span className="font-semibold text-rose-300 block mb-0.5">Feedback from Admin:</span>
+                {activeRestaurant.rejectionReason}
+              </div>
+            )}
+            <p className="text-[11px] text-[#B7AAA0] pt-1">
+              <strong>Next Steps:</strong> Please update your restaurant details under Profile & Hours, or contact our team at <a href="mailto:partner-support@tablereserve.com" className="text-[#C6A47E] underline">partner-support@tablereserve.com</a> for re-evaluation.
+            </p>
+          </div>
+        )}
+
+        {activeRestaurant && activeRestaurant.status === 'suspended' && (
+          <div className="p-4 sm:p-5 rounded-2xl bg-amber-950/30 border border-amber-500/40 shadow-xl space-y-2.5">
+            <div className="flex items-center gap-2.5 text-amber-400 font-bold text-xs uppercase tracking-wider">
+              <ShieldAlert className="w-4 h-4 text-amber-400" />
+              <span>Notice: Venue Temporarily Unavailable</span>
+            </div>
+            <p className="text-xs text-amber-100/90 leading-relaxed">
+              This restaurant is temporarily unavailable. Public diner searches and table reservations have been paused by platform administration.
+            </p>
+            {activeRestaurant.suspendedReason && (
+              <div className="p-3 rounded-xl bg-black/40 border border-amber-500/20 text-xs text-amber-200">
+                <span className="font-semibold text-amber-300 block mb-0.5">Reason:</span>
+                {activeRestaurant.suspendedReason}
+              </div>
+            )}
+            <p className="text-[11px] text-[#B7AAA0] pt-1">
+              Please contact merchant support to resolve this suspension.
+            </p>
+          </div>
+        )}
+
         {children}
       </main>
 

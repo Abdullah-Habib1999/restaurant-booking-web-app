@@ -24,7 +24,8 @@ import {
   Review,
   ReviewStats,
   AvailabilityStatus,
-  SlotAvailabilityResponse
+  SlotAvailabilityResponse,
+  RestaurantStatus
 } from '@/types';
 import { 
   INITIAL_RESTAURANTS, 
@@ -285,6 +286,11 @@ function ensureSchemaAndSeed(db: any): void {
   try { db.exec("ALTER TABLE tables ADD COLUMN posY REAL DEFAULT 50"); } catch (e) {}
   try { db.exec("ALTER TABLE tables ADD COLUMN rotation REAL DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE reservations ADD COLUMN assignedSeatNumbers TEXT"); } catch (e) {}
+  try { db.exec('ALTER TABLE restaurants ADD COLUMN rejectionReason TEXT'); } catch (e) {}
+  try { db.exec('ALTER TABLE restaurants ADD COLUMN reviewedByAdminId TEXT'); } catch (e) {}
+  try { db.exec('ALTER TABLE restaurants ADD COLUMN reviewedAt TEXT'); } catch (e) {}
+  try { db.exec('ALTER TABLE restaurants ADD COLUMN suspendedAt TEXT'); } catch (e) {}
+  try { db.exec('ALTER TABLE restaurants ADD COLUMN suspendedReason TEXT'); } catch (e) {}
 
   // 4. Atomic, dependency-respecting seed transaction using INSERT OR IGNORE
   // Guarantees all parent records exist before children and never overwrites user data
@@ -486,7 +492,12 @@ function mapRestaurant(row: any): Restaurant {
     ...row,
     cuisineType: JSON.parse(row.cuisineType || '[]'),
     requiresManualApproval: Boolean(row.requiresManualApproval),
-    timezone: row.timezone || 'America/New_York'
+    timezone: row.timezone || 'America/New_York',
+    rejectionReason: row.rejectionReason || undefined,
+    reviewedByAdminId: row.reviewedByAdminId || undefined,
+    reviewedAt: row.reviewedAt || undefined,
+    suspendedAt: row.suspendedAt || undefined,
+    suspendedReason: row.suspendedReason || undefined
   };
 }
 
@@ -548,42 +559,71 @@ export const serverDb = {
   },
 
   saveRestaurant: (r: Restaurant): Restaurant => {
-    const existing = sqlite.prepare('SELECT id FROM restaurants WHERE id = ?').get(r.id);
-    if (existing) {
-      sqlite.prepare(`
-        UPDATE restaurants SET 
-          name = ?, tagline = ?, description = ?, cuisineType = ?, phone = ?, email = ?,
-          address = ?, city = ?, coverImageUrl = ?, priceTier = ?, seatingManagementMode = ?,
-          totalSeatingCapacity = ?, slotDurationMinutes = ?, bufferTimeMinutes = ?,
-          minPartySize = ?, maxPartySize = ?, cancellationPolicy = ?, cancellationCutoffHours = ?,
-          requiresManualApproval = ?, status = ?
-        WHERE id = ?
-      `).run(
-        r.name, r.tagline, r.description, JSON.stringify(r.cuisineType), r.phone, r.email,
-        r.address, r.city, r.coverImageUrl, r.priceTier, r.seatingManagementMode,
-        r.totalSeatingCapacity, r.slotDurationMinutes, r.bufferTimeMinutes,
-        r.minPartySize, r.maxPartySize, r.cancellationPolicy, r.cancellationCutoffHours,
-        r.requiresManualApproval ? 1 : 0, r.status, r.id
-      );
-    } else {
-      sqlite.prepare(`
-        INSERT INTO restaurants (
-          id, ownerId, name, slug, tagline, description, cuisineType, phone, email, address, city,
-          coverImageUrl, priceTier, seatingManagementMode, totalSeatingCapacity, slotDurationMinutes,
-          bufferTimeMinutes, minPartySize, maxPartySize, cancellationPolicy, cancellationCutoffHours,
-          requiresManualApproval, status, createdAt
-        ) VALUES (
-          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-        )
-      `).run(
-        r.id, r.ownerId, r.name, r.slug, r.tagline, r.description, JSON.stringify(r.cuisineType),
-        r.phone, r.email, r.address, r.city, r.coverImageUrl, r.priceTier, r.seatingManagementMode,
-        r.totalSeatingCapacity, r.slotDurationMinutes, r.bufferTimeMinutes, r.minPartySize,
-        r.maxPartySize, r.cancellationPolicy, r.cancellationCutoffHours,
-        r.requiresManualApproval ? 1 : 0, r.status, r.createdAt
-      );
-    }
-    return r;
+    const formatted: Restaurant = {
+      ...r,
+      coverImageUrl: r.coverImageUrl || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80',
+      totalSeatingCapacity: Number(r.totalSeatingCapacity) || 40,
+      slotDurationMinutes: Number(r.slotDurationMinutes) || 90,
+      bufferTimeMinutes: Number(r.bufferTimeMinutes) || 15,
+      minPartySize: Number(r.minPartySize) || 1,
+      maxPartySize: Number(r.maxPartySize) || 12,
+      cancellationCutoffHours: Number(r.cancellationCutoffHours) || 2,
+      cancellationPolicy: r.cancellationPolicy || 'Complimentary cancellation up to 2 hours before your booking.',
+      createdAt: r.createdAt || new Date().toISOString()
+    };
+
+    return safeMutation(
+      () => {
+        const existing = sqlite.prepare('SELECT id FROM restaurants WHERE id = ?').get(formatted.id);
+        if (existing) {
+          sqlite.prepare(`
+            UPDATE restaurants SET 
+              name = ?, tagline = ?, description = ?, cuisineType = ?, phone = ?, email = ?,
+              address = ?, city = ?, coverImageUrl = ?, priceTier = ?, seatingManagementMode = ?,
+              totalSeatingCapacity = ?, slotDurationMinutes = ?, bufferTimeMinutes = ?,
+              minPartySize = ?, maxPartySize = ?, cancellationPolicy = ?, cancellationCutoffHours = ?,
+              requiresManualApproval = ?, status = ?, rejectionReason = ?, reviewedByAdminId = ?,
+              reviewedAt = ?, suspendedAt = ?, suspendedReason = ?
+            WHERE id = ?
+          `).run(
+            formatted.name, formatted.tagline || null, formatted.description || null, JSON.stringify(formatted.cuisineType || []), formatted.phone, formatted.email,
+            formatted.address, formatted.city, formatted.coverImageUrl, formatted.priceTier, formatted.seatingManagementMode,
+            formatted.totalSeatingCapacity, formatted.slotDurationMinutes, formatted.bufferTimeMinutes,
+            formatted.minPartySize, formatted.maxPartySize, formatted.cancellationPolicy, formatted.cancellationCutoffHours,
+            formatted.requiresManualApproval ? 1 : 0, formatted.status,
+            formatted.rejectionReason || null, formatted.reviewedByAdminId || null, formatted.reviewedAt || null,
+            formatted.suspendedAt || null, formatted.suspendedReason || null, formatted.id
+          );
+        } else {
+          sqlite.prepare(`
+            INSERT INTO restaurants (
+              id, ownerId, name, slug, tagline, description, cuisineType, phone, email, address, city,
+              coverImageUrl, priceTier, seatingManagementMode, totalSeatingCapacity, slotDurationMinutes,
+              bufferTimeMinutes, minPartySize, maxPartySize, cancellationPolicy, cancellationCutoffHours,
+              requiresManualApproval, status, rejectionReason, reviewedByAdminId, reviewedAt,
+              suspendedAt, suspendedReason, createdAt
+            ) VALUES (
+              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            )
+          `).run(
+            formatted.id, formatted.ownerId, formatted.name, formatted.slug, formatted.tagline || null, formatted.description || null, JSON.stringify(formatted.cuisineType || []),
+            formatted.phone, formatted.email, formatted.address, formatted.city, formatted.coverImageUrl, formatted.priceTier, formatted.seatingManagementMode,
+            formatted.totalSeatingCapacity, formatted.slotDurationMinutes, formatted.bufferTimeMinutes, formatted.minPartySize,
+            formatted.maxPartySize, formatted.cancellationPolicy, formatted.cancellationCutoffHours,
+            formatted.requiresManualApproval ? 1 : 0, formatted.status,
+            formatted.rejectionReason || null, formatted.reviewedByAdminId || null, formatted.reviewedAt || null,
+            formatted.suspendedAt || null, formatted.suspendedReason || null, formatted.createdAt
+          );
+        }
+        return formatted;
+      },
+      () => {
+        const idx = memRestaurants.findIndex(x => x.id === formatted.id);
+        if (idx >= 0) memRestaurants[idx] = formatted;
+        else memRestaurants.push(formatted);
+        return formatted;
+      }
+    );
   },
 
   // TABLES
@@ -931,6 +971,24 @@ export const serverDb = {
         message: `Restaurant with identifier "${restaurantId}" could not be found.`,
         slots: [],
         hours: null
+      };
+    }
+
+    if (rest.status !== 'published') {
+      let statusMsg = 'This restaurant is not currently accepting public reservations.';
+      if (rest.status === 'pending_approval') {
+        statusMsg = 'This restaurant registration is currently awaiting administrative approval and cannot accept bookings.';
+      } else if (rest.status === 'suspended') {
+        statusMsg = 'This restaurant is temporarily suspended and reservation booking is paused.';
+      } else if (rest.status === 'rejected') {
+        statusMsg = 'This restaurant registration is inactive and not available for booking.';
+      }
+      return {
+        status: 'closed',
+        message: statusMsg,
+        slots: [],
+        hours: null,
+        restaurant: { id: rest.id, name: rest.name, slug: rest.slug, timezone: rest.timezone }
       };
     }
 
@@ -1325,6 +1383,18 @@ export const serverDb = {
       return { success: false, error: 'Restaurant not found.' };
     }
 
+    if (restaurant.status !== 'published') {
+      let statusMsg = 'This restaurant is not currently available for reservations.';
+      if (restaurant.status === 'pending_approval') {
+        statusMsg = 'This restaurant registration is awaiting admin approval and cannot accept bookings yet.';
+      } else if (restaurant.status === 'suspended') {
+        statusMsg = 'This restaurant is currently suspended and bookings are paused.';
+      } else if (restaurant.status === 'rejected') {
+        statusMsg = 'This restaurant registration is inactive.';
+      }
+      return { success: false, error: statusMsg };
+    }
+
     const reservationDate = (data.reservationDate || (data as any).date || '').trim();
     if (!reservationDate) {
       return { success: false, error: 'A valid reservation date (YYYY-MM-DD) is required.' };
@@ -1610,6 +1680,155 @@ export const serverDb = {
         if (idx >= 0) memUsers[idx] = u;
         else memUsers.push(u);
         return u;
+      }
+    );
+  },
+
+  // ADMIN OPERATIONS
+  hasAnyAdmin: (): boolean => {
+    return safeQuery(
+      () => {
+        const row = sqlite.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").get() as { count: number };
+        return (row?.count || 0) > 0;
+      },
+      () => memUsers.some(u => u.role === 'admin')
+    );
+  },
+
+  getAdminStats: () => {
+    return safeQuery(
+      () => {
+        const rows = sqlite.prepare("SELECT status, COUNT(*) as cnt FROM restaurants GROUP BY status").all() as { status: string, cnt: number }[];
+        const counts: Record<string, number> = {
+          total: 0,
+          pending_approval: 0,
+          published: 0,
+          rejected: 0,
+          suspended: 0,
+          draft: 0
+        };
+        let total = 0;
+        for (const r of rows) {
+          counts[r.status] = r.cnt;
+          total += r.cnt;
+        }
+        counts.total = total;
+
+        const resCountRow = sqlite.prepare("SELECT COUNT(*) as count FROM reservations").get() as { count: number };
+        const custCountRow = sqlite.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'customer'").get() as { count: number };
+
+        return {
+          totalRestaurants: total,
+          pendingApprovals: counts.pending_approval || 0,
+          approvedRestaurants: counts.published || 0,
+          rejectedRegistrations: counts.rejected || 0,
+          suspendedRestaurants: counts.suspended || 0,
+          totalReservations: resCountRow?.count || 0,
+          totalCustomers: custCountRow?.count || 0
+        };
+      },
+      () => {
+        const pending = memRestaurants.filter(r => r.status === 'pending_approval').length;
+        const approved = memRestaurants.filter(r => r.status === 'published').length;
+        const rejected = memRestaurants.filter(r => r.status === 'rejected').length;
+        const suspended = memRestaurants.filter(r => r.status === 'suspended').length;
+        return {
+          totalRestaurants: memRestaurants.length,
+          pendingApprovals: pending,
+          approvedRestaurants: approved,
+          rejectedRegistrations: rejected,
+          suspendedRestaurants: suspended,
+          totalReservations: memReservations.length,
+          totalCustomers: memUsers.filter(u => u.role === 'customer').length
+        };
+      }
+    );
+  },
+
+  updateRestaurantApprovalStatus: (
+    restaurantId: string, 
+    status: RestaurantStatus, 
+    details?: {
+      rejectionReason?: string;
+      suspendedReason?: string;
+      adminId?: string;
+    }
+  ): Restaurant | null => {
+    const existing = serverDb.getRestaurantById(restaurantId);
+    if (!existing) return null;
+
+    const now = new Date().toISOString();
+    const updated: Restaurant = {
+      ...existing,
+      status,
+      reviewedByAdminId: details?.adminId || existing.reviewedByAdminId,
+      reviewedAt: now,
+      rejectionReason: status === 'rejected' ? details?.rejectionReason : (status === 'published' ? undefined : existing.rejectionReason),
+      suspendedReason: status === 'suspended' ? details?.suspendedReason : (status === 'published' ? undefined : existing.suspendedReason),
+      suspendedAt: status === 'suspended' ? now : (status === 'published' ? undefined : existing.suspendedAt)
+    };
+
+    return serverDb.saveRestaurant(updated);
+  },
+
+  getAdminRestaurants: (filter?: { status?: string; search?: string }) => {
+    return safeQuery(
+      () => {
+        let sql = `
+          SELECT r.*, u.fullName as ownerName, u.email as ownerEmail, u.phone as ownerPhone,
+          (SELECT COUNT(*) FROM tables t WHERE t.restaurantId = r.id) as tableCount
+          FROM restaurants r
+          LEFT JOIN users u ON r.ownerId = u.id
+          WHERE 1=1
+        `;
+        const params: any[] = [];
+        if (filter?.status && filter.status !== 'all') {
+          sql += ' AND r.status = ?';
+          params.push(filter.status);
+        }
+        if (filter?.search) {
+          sql += ' AND (r.name LIKE ? OR r.city LIKE ? OR u.fullName LIKE ? OR u.email LIKE ?)';
+          const term = `%${filter.search}%`;
+          params.push(term, term, term, term);
+        }
+        sql += ' ORDER BY r.createdAt DESC';
+        const rows = sqlite.prepare(sql).all(...params);
+        return rows.map((row: any) => ({
+          ...mapRestaurant(row),
+          tableCount: row.tableCount || 0,
+          owner: row.ownerName ? {
+            id: row.ownerId,
+            fullName: row.ownerName,
+            email: row.ownerEmail,
+            phone: row.ownerPhone,
+            role: 'restaurant_owner' as const,
+            createdAt: row.createdAt
+          } : undefined
+        }));
+      },
+      () => {
+        let list = memRestaurants.map(r => {
+          const owner = memUsers.find(u => u.id === r.ownerId);
+          const tCount = memTables.filter(t => t.restaurantId === r.id).length;
+          return {
+            ...r,
+            tableCount: tCount,
+            owner
+          };
+        });
+        if (filter?.status && filter.status !== 'all') {
+          list = list.filter(r => r.status === filter.status);
+        }
+        if (filter?.search) {
+          const s = filter.search.toLowerCase();
+          list = list.filter(r => 
+            r.name.toLowerCase().includes(s) ||
+            r.city.toLowerCase().includes(s) ||
+            r.owner?.fullName?.toLowerCase().includes(s) ||
+            r.owner?.email?.toLowerCase().includes(s)
+          );
+        }
+        return list;
       }
     );
   },

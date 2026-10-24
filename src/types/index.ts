@@ -13,7 +13,7 @@ export interface UserProfile {
 
 export type PriceTier = '$' | '$$' | '$$$' | '$$$$';
 export type SeatingMode = 'total_capacity' | 'individual_tables';
-export type RestaurantStatus = 'draft' | 'pending_approval' | 'published' | 'suspended';
+export type RestaurantStatus = 'draft' | 'pending_approval' | 'published' | 'rejected' | 'suspended';
 
 export interface RestaurantHours {
   id: string;
@@ -118,6 +118,11 @@ export interface Restaurant {
   cancellationCutoffHours: number;
   requiresManualApproval: boolean;
   status: RestaurantStatus;
+  rejectionReason?: string;
+  reviewedByAdminId?: string;
+  reviewedAt?: string;
+  suspendedAt?: string;
+  suspendedReason?: string;
   rating?: number;
   reviewCount?: number;
   timezone?: string;

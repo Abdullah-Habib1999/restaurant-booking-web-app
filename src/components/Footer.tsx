@@ -10,9 +10,10 @@ export default function Footer() {
   const { user, isAuthenticated, role } = useAuth();
   const pathname = usePathname();
 
-  // If inside the private owner console, omit the public marketing footer
+  // If inside the private owner or admin console, omit the public marketing footer
   const isOwnerRoute = pathname.startsWith('/owner');
-  if (isOwnerRoute) {
+  const isAdminRoute = pathname.startsWith('/admin');
+  if (isOwnerRoute || isAdminRoute) {
     return null;
   }
 
@@ -124,6 +125,12 @@ export default function Footer() {
               <li>
                 <Link href="/cancellation-policy" className="hover:text-[#F5F0E9] transition">
                   Booking & Cancellation Policy
+                </Link>
+              </li>
+              <li className="pt-2 border-t border-[#332A25]/60">
+                <Link href="/admin" className="text-[#C6A47E] hover:text-[#F5F0E9] transition font-medium flex items-center gap-1 text-[11px]">
+                  <span>Super Admin Portal</span>
+                  <ArrowRight className="w-2.5 h-2.5" />
                 </Link>
               </li>
             </ul>

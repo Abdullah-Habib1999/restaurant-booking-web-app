@@ -9,17 +9,19 @@ import {
   Calendar, 
   User, 
   Compass, 
-  LogIn
+  LogIn,
+  ShieldCheck
 } from 'lucide-react';
 
 export default function Navigation() {
   const pathname = usePathname();
   const { user, isAuthenticated, role } = useAuth();
 
-  // If inside the private owner console, show the dedicated minimal header
+  // If inside the private owner or admin console, hide the public header
   const isOwnerRoute = pathname.startsWith('/owner');
-  if (isOwnerRoute) {
-    return null; // The owner layout has its own sidebar & header
+  const isAdminRoute = pathname.startsWith('/admin');
+  if (isOwnerRoute || isAdminRoute) {
+    return null; // Layout has its own sidebar & header
   }
 
   return (
@@ -79,6 +81,15 @@ export default function Navigation() {
           <div className="flex items-center gap-3">
             {isAuthenticated ? (
               <div className="flex items-center gap-3">
+                {role === 'admin' && (
+                  <Link
+                    href="/admin"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold hover:bg-amber-500/30 transition shadow-xs"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Admin</span>
+                  </Link>
+                )}
                 <Link
                   href="/profile"
                   className="flex items-center gap-2.5 px-3 py-1.5 rounded-full border border-[#332A25] bg-[#181513] hover:bg-[#1C1917] hover:border-[#54372D] transition shadow-xs"

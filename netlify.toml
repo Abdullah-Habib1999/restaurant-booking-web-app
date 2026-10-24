@@ -1,6 +1,10 @@
 [build]
   command = "npm run build"
+  publish = ".next"
 
 [build.environment]
   NODE_VERSION = "20"
   NEXT_PUBLIC_APP_URL = "https://restaurant-booking-web-app.netlify.app"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

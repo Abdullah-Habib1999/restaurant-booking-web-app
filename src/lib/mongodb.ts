@@ -220,7 +220,7 @@ export async function checkMongoConnection(): Promise<{
     return {
       ok: true,
       message: 'MongoDB Atlas connection active and healthy.',
-      database: dbName,
+      database: db.databaseName,
       pingMs
     };
   } catch (err: any) {

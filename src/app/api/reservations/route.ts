@@ -9,12 +9,12 @@ export async function GET(request: NextRequest) {
     const id = searchParams.get('id');
 
     if (id) {
-      const res = serverDb.getReservationById(id);
+      const res = await serverDb.getReservationById(id);
       if (!res) return NextResponse.json({ error: 'Reservation not found' }, { status: 404 });
       return NextResponse.json(res);
     }
 
-    const reservations = serverDb.getReservations({ restaurantId, customerId });
+    const reservations = await serverDb.getReservations({ restaurantId, customerId });
     return NextResponse.json(reservations);
   } catch (err: any) {
     if (err?.digest?.startsWith('NEXT_')) throw err;
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const result = serverDb.createReservation(body);
+    const result = await serverDb.createReservation(body);
     if (!result.success) {
       return NextResponse.json(result, { status: 400 });
     }
@@ -49,11 +49,11 @@ export async function PATCH(request: NextRequest) {
     let updated = null;
 
     if (status) {
-      updated = serverDb.updateReservationStatus(id, status, cancellationReason);
+      updated = await serverDb.updateReservationStatus(id, status, cancellationReason);
     }
 
     if (assignedTableId) {
-      updated = serverDb.assignReservationTable(id, assignedTableId);
+      updated = await serverDb.assignReservationTable(id, assignedTableId);
     }
 
     if (!updated) {

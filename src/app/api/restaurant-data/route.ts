@@ -10,11 +10,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'restaurantId is required' }, { status: 400 });
     }
 
-    const categories = serverDb.getMenuCategories(restaurantId);
-    const items = serverDb.getMenuItems(restaurantId);
-    const tables = serverDb.getTables(restaurantId);
-    const hours = serverDb.getRestaurantHours(restaurantId);
-    const closures = serverDb.getRestaurantClosures(restaurantId);
+    const categories = await serverDb.getMenuCategories(restaurantId);
+    const items = await serverDb.getMenuItems(restaurantId);
+    const tables = await serverDb.getTables(restaurantId);
+    const hours = await serverDb.getRestaurantHours(restaurantId);
+    const closures = await serverDb.getRestaurantClosures(restaurantId);
 
     return NextResponse.json({ categories, items, tables, hours, closures });
   } catch (err: any) {
@@ -31,25 +31,25 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case 'saveTable':
-        return NextResponse.json(serverDb.saveTable(table));
+        return NextResponse.json(await serverDb.saveTable(table));
       case 'deleteTable':
-        serverDb.deleteTable(tableId);
+        await serverDb.deleteTable(tableId);
         return NextResponse.json({ success: true });
       case 'saveCategory':
-        return NextResponse.json(serverDb.saveMenuCategory(category));
+        return NextResponse.json(await serverDb.saveMenuCategory(category));
       case 'deleteCategory':
-        serverDb.deleteMenuCategory(categoryId);
+        await serverDb.deleteMenuCategory(categoryId);
         return NextResponse.json({ success: true });
       case 'saveMenuItem':
-        return NextResponse.json(serverDb.saveMenuItem(menuItem));
+        return NextResponse.json(await serverDb.saveMenuItem(menuItem));
       case 'deleteMenuItem':
-        serverDb.deleteMenuItem(menuItemId);
+        await serverDb.deleteMenuItem(menuItemId);
         return NextResponse.json({ success: true });
       case 'saveHours':
-        serverDb.saveRestaurantHours(restaurantId, hours);
+        await serverDb.saveRestaurantHours(restaurantId, hours);
         return NextResponse.json({ success: true });
       case 'saveClosure':
-        if (closure) serverDb.saveRestaurantClosure(closure);
+        if (closure) await serverDb.saveRestaurantClosure(closure);
         return NextResponse.json({ success: true });
       default:
         return NextResponse.json({ error: 'Invalid action specified' }, { status: 400 });

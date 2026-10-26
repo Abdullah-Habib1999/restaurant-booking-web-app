@@ -8,12 +8,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Admin authentication required.' }, { status: 401 });
     }
 
-    const adminUser = serverDb.getUserById(adminId);
+    const adminUser = await serverDb.getUserById(adminId);
     if (!adminUser || adminUser.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden: Super Admin privileges required.' }, { status: 403 });
     }
 
-    const stats = serverDb.getAdminStats();
+    const stats = await serverDb.getAdminStats();
     return NextResponse.json(stats);
   } catch (err: any) {
     if (err?.digest?.startsWith('NEXT_')) throw err;

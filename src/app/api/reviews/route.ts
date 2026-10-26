@@ -7,14 +7,12 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const restaurantId = searchParams.get('restaurantId') || undefined;
     const customerId = searchParams.get('customerId') || undefined;
-    const reservationId = searchParams.get('reservationId') || undefined;
     const sortBy = (searchParams.get('sortBy') as 'recent' | 'highest' | 'lowest') || 'recent';
 
-    const reviews = serverDb.getReviews({
+    const reviews = await serverDb.getReviews({
       restaurantId,
       customerId,
-      reservationId,
-      sortBy
+      sort: sortBy
     });
 
     return NextResponse.json(reviews);
@@ -51,7 +49,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = serverDb.createReview({
+    const result = await serverDb.createReview({
       restaurantId,
       customerId,
       customerName,
@@ -97,7 +95,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Review ID and Customer ID are required.' }, { status: 400 });
     }
 
-    const result = serverDb.updateReview(id, customerId, {
+    const result = await serverDb.updateReview(id, customerId, {
       overallRating: overallRating !== undefined ? Number(overallRating) : undefined,
       foodRating: foodRating !== undefined ? Number(foodRating) : undefined,
       serviceRating: serviceRating !== undefined ? Number(serviceRating) : undefined,
@@ -129,7 +127,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Review ID and Customer ID are required.' }, { status: 400 });
     }
 
-    const result = serverDb.deleteReview(id, customerId);
+    const result = await serverDb.deleteReview(id, customerId);
     if (!result.success) {
       return NextResponse.json(result, { status: 400 });
     }

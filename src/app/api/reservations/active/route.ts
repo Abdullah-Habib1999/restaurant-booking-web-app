@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'restaurantId and customerId are required' }, { status: 400 });
     }
 
-    const activeBooking = serverDb.getActiveBookingForCustomer(restaurantId, customerId, date);
+    const activeBooking = await serverDb.getActiveBookingForCustomer(restaurantId, customerId, date);
     return NextResponse.json({ activeBooking });
   } catch (err: any) {
     if (err?.digest?.startsWith('NEXT_')) throw err;

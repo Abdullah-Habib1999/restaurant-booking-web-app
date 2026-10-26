@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { serverDb } from '@/lib/serverDb';
 
-function getAuthenticatedAdmin(request: NextRequest) {
+async function getAuthenticatedAdmin(request: NextRequest) {
   const adminId = request.headers.get('x-admin-user-id') || request.headers.get('x-user-id');
   if (!adminId) return null;
-  const user = serverDb.getUserById(adminId);
+  const user = await serverDb.getUserById(adminId);
   return user && user.role === 'admin' ? user : null;
 }
 
@@ -13,11 +13,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const slug = searchParams.get('slug');
     const id = searchParams.get('id');
-    const admin = getAuthenticatedAdmin(request);
+    const admin = await getAuthenticatedAdmin(request);
     const callerUserId = request.headers.get('x-user-id') || '';
 
     if (slug) {
-      const rest = serverDb.getRestaurantBySlug(slug);
+      const rest = await serverDb.getRestaurantBySlug(slug);
       if (!rest) return NextResponse.json({ error: 'Not found' }, { status: 404 });
       
       // If restaurant is not published, only its owner or an admin can view details
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (id) {
-      const rest = serverDb.getRestaurantById(id);
+      const rest = await serverDb.getRestaurantById(id);
       if (!rest) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
       if (rest.status !== 'published') {
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(rest);
     }
 
-    const all = serverDb.getRestaurants();
+    const all = await serverDb.getRestaurants();
     const includeUnpublished = searchParams.get('includeUnpublished') === 'true';
 
     // Only authorized admins can request unapproved/pending/suspended venues
@@ -66,10 +66,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const admin = getAuthenticatedAdmin(request);
+    const admin = await getAuthenticatedAdmin(request);
 
     // If existing restaurant
-    const existing = body.id ? serverDb.getRestaurantById(body.id) : null;
+    const existing = body.id ? await serverDb.getRestaurantById(body.id) : null;
 
     if (!admin) {
       // Non-admin cannot unilaterally publish or approve a restaurant
@@ -90,11 +90,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const saved = serverDb.saveRestaurant(body);
+    const saved = await serverDb.saveRestaurant(body);
     return NextResponse.json(saved);
   } catch (err: any) {
     console.error('API /api/restaurants POST error:', err);
     return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });
   }
 }
-

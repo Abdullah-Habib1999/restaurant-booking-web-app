@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Admin authentication required.' }, { status: 401 });
     }
 
-    const adminUser = serverDb.getUserById(adminId);
+    const adminUser = await serverDb.getUserById(adminId);
     if (!adminUser || adminUser.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden: Super Admin privileges required.' }, { status: 403 });
     }
@@ -20,12 +20,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'restaurantId is required.' }, { status: 400 });
     }
 
-    const restaurant = serverDb.getRestaurantById(restaurantId);
+    const restaurant = await serverDb.getRestaurantById(restaurantId);
     if (!restaurant) {
       return NextResponse.json({ error: 'Restaurant not found.' }, { status: 404 });
     }
 
-    const updated = serverDb.updateRestaurantApprovalStatus(restaurantId, 'published', {
+    const updated = await serverDb.updateRestaurantApprovalStatus(restaurantId, 'published', {
       adminId: adminUser.id
     });
 

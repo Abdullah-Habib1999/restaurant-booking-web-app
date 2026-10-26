@@ -1,14 +1,3 @@
-// Safe dynamic loader for better-sqlite3 to prevent serverless function crashes when native addons are missing
-let DatabaseConstructor: any = null;
-try {
-  DatabaseConstructor = eval('require')('better-sqlite3');
-} catch (e) {
-  console.warn('[serverDb] better-sqlite3 native addon not available, running resilient in-memory engine.');
-}
-
-import path from 'path';
-import fs from 'fs';
-import os from 'os';
 import { 
   Restaurant, 
   DiningTable, 
@@ -16,16 +5,16 @@ import {
   MenuItem, 
   Reservation, 
   RestaurantHours, 
-  RestaurantClosure,
-  TimeSlotAvailability,
-  UserProfile,
-  ReservationStatus,
-  TableSeatStatus,
-  Review,
-  ReviewStats,
-  AvailabilityStatus,
-  SlotAvailabilityResponse,
-  RestaurantStatus
+  RestaurantClosure, 
+  TimeSlotAvailability, 
+  UserProfile, 
+  ReservationStatus, 
+  TableSeatStatus, 
+  Review, 
+  ReviewStats, 
+  AvailabilityStatus, 
+  SlotAvailabilityResponse, 
+  RestaurantStatus 
 } from '@/types';
 import { 
   INITIAL_RESTAURANTS, 
@@ -33,571 +22,200 @@ import {
   INITIAL_HOURS, 
   INITIAL_MENU_CATEGORIES, 
   INITIAL_MENU_ITEMS, 
-  INITIAL_RESERVATIONS,
-  INITIAL_REVIEWS,
-  INITIAL_USERS
+  INITIAL_RESERVATIONS, 
+  INITIAL_REVIEWS, 
+  INITIAL_USERS 
 } from '@/data/seed';
+import { getDb, isMongoConfigured, COLLECTIONS } from '@/lib/mongodb';
+import { hashPassword, verifyPassword, isLegacyPlainText } from '@/lib/authCrypto';
 
-// Memory map for cinema-style temporary seat holds with automatic expiration
+// Helper utilities for time calculations
+export const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+export function timeToMinutes(timeStr: string): number {
+  if (!timeStr) return 0;
+  const [h, m] = timeStr.split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+export function minutesToTime(mins: number): string {
+  const norm = ((mins % (24 * 60)) + (24 * 60)) % (24 * 60);
+  const h = Math.floor(norm / 60);
+  const m = norm % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}
+
+export function formatTime12h(timeStr: string): string {
+  if (!timeStr) return '';
+  const [h, m] = timeStr.split(':').map(Number);
+  const period = (h || 0) >= 12 ? 'PM' : 'AM';
+  const displayH = (h || 0) % 12 === 0 ? 12 : (h || 0) % 12;
+  return `${displayH}:${(m || 0).toString().padStart(2, '0')} ${period}`;
+}
+
+// Memory map for temporary seat holds with automatic expiration (10 min TTL)
 const seatHolds = new Map<string, { token: string; expiresAt: number }>();
 
-// Safe SQLite connection initialization that works reliably across local Windows, Linux, and Vercel/Netlify/AWS Lambda serverless environments
-function initSqliteDatabase(): any {
-  if (!DatabaseConstructor) return null;
+// In-memory fallback stores when MongoDB is not configured (e.g. initial build without env vars)
+let memRestaurants: Restaurant[] = [...INITIAL_RESTAURANTS];
+let memTables: DiningTable[] = [...INITIAL_TABLES];
+let memHours: RestaurantHours[] = [...INITIAL_HOURS];
+let memClosures: RestaurantClosure[] = [];
+let memCategories: MenuCategory[] = [...INITIAL_MENU_CATEGORIES];
+let memMenuItems: MenuItem[] = [...INITIAL_MENU_ITEMS];
+let memReservations: Reservation[] = [...INITIAL_RESERVATIONS];
+let memReviews: Review[] = [...INITIAL_REVIEWS];
+let memUsers: UserProfile[] = [...INITIAL_USERS];
 
-  const isServerless = Boolean(
-    process.env.NETLIFY ||
-    process.env.VERCEL ||
-    process.env.AWS_LAMBDA_FUNCTION_NAME ||
-    process.env.LAMBDA_TASK_ROOT ||
-    process.env.NODE_ENV === 'production'
-  );
-  const candidateDirs: string[] = [];
+// Global seed flag to avoid repeated count queries on warm serverless lambdas
+let hasCheckedInitialSeed = false;
 
-  if (isServerless) {
-    candidateDirs.push(
-      path.join(os.tmpdir(), 'tablereserve-data'),
-      path.join('/tmp', 'tablereserve-data')
-    );
-  } else {
-    candidateDirs.push(
-      path.join(process.cwd(), 'data'),
-      path.join(os.tmpdir(), 'tablereserve-data')
-    );
-  }
-
-  for (const dir of candidateDirs) {
-    try {
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      const dbPath = path.join(dir, 'tablereserve.db');
-      const db = new DatabaseConstructor(dbPath);
-      try {
-        db.pragma('journal_mode = WAL');
-      } catch (walErr) {
-        // WAL mode not supported on some virtual filesystems, continue with default journal
-      }
-      return db;
-    } catch (err) {
-      console.warn(`[serverDb] Could not initialize SQLite in ${dir}:`, err);
-    }
-  }
-
+async function ensureMongoSeeded(): Promise<void> {
+  if (hasCheckedInitialSeed || !isMongoConfigured()) return;
   try {
-    console.warn('[serverDb] Using in-memory SQLite database as resilient fallback.');
-    return new DatabaseConstructor(':memory:');
-  } catch (err) {
-    console.warn('[serverDb] Could not create in-memory SQLite database:', err);
-    return null;
-  }
-}
+    const db = await getDb();
+    const count = await db.collection(COLLECTIONS.RESTAURANTS).countDocuments();
+    if (count === 0) {
+      console.log('[serverDb] MongoDB database is empty. Initializing baseline seed collections...');
+      
+      // Seed users with hashed passwords
+      const seededUsers = await Promise.all(
+        INITIAL_USERS.map(async (u) => {
+          const pass = u.password || 'password123';
+          const hashed = pass.startsWith('scrypt$') ? pass : await hashPassword(pass);
+          return { ...u, _id: u.id, password: hashed };
+        })
+      );
+      if (seededUsers.length > 0) {
+        await db.collection<any>(COLLECTIONS.USERS).insertMany(seededUsers);
+      }
 
-// In-memory mirrored persistent collections for guaranteed zero-downtime serverless resilience
-const memRestaurants: Restaurant[] = [...INITIAL_RESTAURANTS];
-const memTables: DiningTable[] = [...INITIAL_TABLES];
-const memHours: RestaurantHours[] = [...INITIAL_HOURS];
-const memClosures: RestaurantClosure[] = [];
-const memCategories: MenuCategory[] = [...INITIAL_MENU_CATEGORIES];
-const memMenuItems: MenuItem[] = [...INITIAL_MENU_ITEMS];
-const memReservations: Reservation[] = [...INITIAL_RESERVATIONS];
-const memReviews: Review[] = [...INITIAL_REVIEWS];
-const memUsers: UserProfile[] = [...INITIAL_USERS];
+      // Seed restaurants
+      const seededRestaurants = INITIAL_RESTAURANTS.map(r => ({ ...r, _id: r.id }));
+      if (seededRestaurants.length > 0) {
+        await db.collection<any>(COLLECTIONS.RESTAURANTS).insertMany(seededRestaurants);
+      }
 
-function syncEnvAdmin(): void {
-  if (process.env.ADMIN_INITIAL_EMAIL && process.env.ADMIN_INITIAL_PASSWORD) {
-    const envEmail = process.env.ADMIN_INITIAL_EMAIL.trim().toLowerCase();
-    const envPass = process.env.ADMIN_INITIAL_PASSWORD.trim();
-    const envName = process.env.ADMIN_INITIAL_NAME?.trim() || 'Super Administrator';
-    const found = memUsers.find(u => u.email.toLowerCase() === envEmail);
-    if (found) {
-      found.role = 'admin';
-      found.password = envPass;
-      found.fullName = envName;
-    } else {
-      memUsers.push({
-        id: 'admin-primary',
-        email: envEmail,
-        fullName: envName,
-        phone: undefined,
-        role: 'admin',
-        password: envPass,
-        createdAt: new Date().toISOString()
-      });
-    }
-  }
-}
-syncEnvAdmin();
+      // Seed hours
+      const seededHours = INITIAL_HOURS.map(h => ({ ...h, _id: h.id }));
+      if (seededHours.length > 0) {
+        await db.collection<any>(COLLECTIONS.RESTAURANT_HOURS).insertMany(seededHours);
+      }
 
-// Idempotent schema initialization and seed synchronization
-function ensureSchemaAndSeed(db: any): void {
-  // 1. Enforce SQLite foreign key integrity
-  db.pragma('foreign_keys = ON');
+      // Seed tables
+      const seededTables = INITIAL_TABLES.map(t => ({ ...t, _id: t.id }));
+      if (seededTables.length > 0) {
+        await db.collection<any>(COLLECTIONS.TABLES).insertMany(seededTables);
+      }
 
-  // 2. Initialize SQL tables in dependency hierarchy order
-  db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
-    email TEXT UNIQUE NOT NULL,
-    fullName TEXT NOT NULL,
-    phone TEXT,
-    role TEXT NOT NULL,
-    password TEXT,
-    ownedRestaurantId TEXT,
-    createdAt TEXT NOT NULL
-  );
+      // Seed menu categories
+      const seededCats = INITIAL_MENU_CATEGORIES.map(c => ({ ...c, _id: c.id }));
+      if (seededCats.length > 0) {
+        await db.collection<any>(COLLECTIONS.MENU_CATEGORIES).insertMany(seededCats);
+      }
 
-  CREATE TABLE IF NOT EXISTS restaurants (
-    id TEXT PRIMARY KEY,
-    ownerId TEXT NOT NULL,
-    name TEXT NOT NULL,
-    slug TEXT UNIQUE NOT NULL,
-    tagline TEXT,
-    description TEXT,
-    cuisineType TEXT NOT NULL, -- JSON array
-    phone TEXT NOT NULL,
-    email TEXT NOT NULL,
-    address TEXT NOT NULL,
-    city TEXT NOT NULL,
-    postalCode TEXT,
-    coverImageUrl TEXT,
-    logoUrl TEXT,
-    priceTier TEXT NOT NULL,
-    seatingManagementMode TEXT NOT NULL,
-    totalSeatingCapacity INTEGER NOT NULL,
-    slotDurationMinutes INTEGER NOT NULL DEFAULT 90,
-    bufferTimeMinutes INTEGER NOT NULL DEFAULT 15,
-    advanceBookingDays INTEGER NOT NULL DEFAULT 30,
-    minPartySize INTEGER NOT NULL DEFAULT 1,
-    maxPartySize INTEGER NOT NULL DEFAULT 20,
-    cancellationPolicy TEXT,
-    cancellationCutoffHours INTEGER NOT NULL DEFAULT 2,
-    requiresManualApproval INTEGER NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'published',
-    rating REAL DEFAULT 4.9,
-    reviewCount INTEGER DEFAULT 120,
-    createdAt TEXT NOT NULL
-  );
+      // Seed menu items
+      const seededItems = INITIAL_MENU_ITEMS.map(m => ({ ...m, _id: m.id }));
+      if (seededItems.length > 0) {
+        await db.collection<any>(COLLECTIONS.MENU_ITEMS).insertMany(seededItems);
+      }
 
-  CREATE TABLE IF NOT EXISTS restaurant_hours (
-    id TEXT PRIMARY KEY,
-    restaurantId TEXT NOT NULL,
-    dayOfWeek INTEGER NOT NULL,
-    openTime TEXT NOT NULL,
-    closeTime TEXT NOT NULL,
-    isClosed INTEGER NOT NULL DEFAULT 0,
-    FOREIGN KEY (restaurantId) REFERENCES restaurants(id) ON DELETE CASCADE
-  );
+      // Seed reservations
+      const seededRes = INITIAL_RESERVATIONS.map(res => ({ ...res, _id: res.id }));
+      if (seededRes.length > 0) {
+        await db.collection<any>(COLLECTIONS.RESERVATIONS).insertMany(seededRes);
+      }
 
-  CREATE TABLE IF NOT EXISTS restaurant_closures (
-    id TEXT PRIMARY KEY,
-    restaurantId TEXT NOT NULL,
-    closureDate TEXT NOT NULL,
-    reason TEXT,
-    FOREIGN KEY (restaurantId) REFERENCES restaurants(id) ON DELETE CASCADE
-  );
+      // Seed reviews
+      const seededReviews = INITIAL_REVIEWS.map(rev => ({ ...rev, _id: rev.id }));
+      if (seededReviews.length > 0) {
+        await db.collection<any>(COLLECTIONS.REVIEWS).insertMany(seededReviews);
+      }
 
-  CREATE TABLE IF NOT EXISTS tables (
-    id TEXT PRIMARY KEY,
-    restaurantId TEXT NOT NULL,
-    tableNumber TEXT NOT NULL,
-    capacity INTEGER NOT NULL,
-    locationArea TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
-    shape TEXT DEFAULT 'rectangle',
-    posX REAL DEFAULT 50,
-    posY REAL DEFAULT 50,
-    rotation REAL DEFAULT 0,
-    FOREIGN KEY (restaurantId) REFERENCES restaurants(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS menu_categories (
-    id TEXT PRIMARY KEY,
-    restaurantId TEXT NOT NULL,
-    name TEXT NOT NULL,
-    displayOrder INTEGER NOT NULL DEFAULT 0,
-    description TEXT,
-    isActive INTEGER NOT NULL DEFAULT 1,
-    FOREIGN KEY (restaurantId) REFERENCES restaurants(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS menu_items (
-    id TEXT PRIMARY KEY,
-    restaurantId TEXT NOT NULL,
-    categoryId TEXT NOT NULL,
-    name TEXT NOT NULL,
-    description TEXT,
-    price REAL NOT NULL,
-    imageUrl TEXT,
-    isAvailable INTEGER NOT NULL DEFAULT 1,
-    isVegetarian INTEGER NOT NULL DEFAULT 0,
-    isNonVegetarian INTEGER NOT NULL DEFAULT 0,
-    isVegan INTEGER NOT NULL DEFAULT 0,
-    isGlutenFree INTEGER NOT NULL DEFAULT 0,
-    preparationNotes TEXT,
-    displayOrder INTEGER NOT NULL DEFAULT 0,
-    FOREIGN KEY (restaurantId) REFERENCES restaurants(id) ON DELETE CASCADE,
-    FOREIGN KEY (categoryId) REFERENCES menu_categories(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS reservations (
-    id TEXT PRIMARY KEY,
-    bookingReference TEXT UNIQUE NOT NULL,
-    restaurantId TEXT NOT NULL,
-    restaurantName TEXT,
-    restaurantSlug TEXT,
-    customerId TEXT NOT NULL,
-    customerName TEXT NOT NULL,
-    customerEmail TEXT NOT NULL,
-    customerPhone TEXT NOT NULL,
-    partySize INTEGER NOT NULL,
-    reservationDate TEXT NOT NULL,
-    startTime TEXT NOT NULL,
-    endTime TEXT NOT NULL,
-    status TEXT NOT NULL,
-    assignedTableId TEXT,
-    assignedTableName TEXT,
-    assignedSeatNumbers TEXT, -- JSON array
-    specialRequests TEXT,
-    orderSubtotal REAL NOT NULL DEFAULT 0,
-    orderTax REAL NOT NULL DEFAULT 0,
-    estimatedTotal REAL NOT NULL DEFAULT 0,
-    items TEXT NOT NULL, -- JSON array
-    cancellationReason TEXT,
-    cancelledAt TEXT,
-    createdAt TEXT NOT NULL,
-    updatedAt TEXT NOT NULL,
-    FOREIGN KEY (restaurantId) REFERENCES restaurants(id) ON DELETE CASCADE,
-    FOREIGN KEY (customerId) REFERENCES users(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS reviews (
-    id TEXT PRIMARY KEY,
-    restaurantId TEXT NOT NULL,
-    customerId TEXT NOT NULL,
-    customerName TEXT NOT NULL,
-    customerEmail TEXT,
-    reservationId TEXT UNIQUE NOT NULL,
-    overallRating INTEGER NOT NULL CHECK (overallRating >= 1 AND overallRating <= 5),
-    foodRating INTEGER CHECK (foodRating >= 1 AND foodRating <= 5),
-    serviceRating INTEGER CHECK (serviceRating >= 1 AND serviceRating <= 5),
-    ambienceRating INTEGER CHECK (ambienceRating >= 1 AND ambienceRating <= 5),
-    valueRating INTEGER CHECK (valueRating >= 1 AND valueRating <= 5),
-    comment TEXT,
-    tags TEXT, -- JSON array of strings
-    ownerResponse TEXT,
-    ownerRespondedAt TEXT,
-    isReported INTEGER NOT NULL DEFAULT 0,
-    reportReason TEXT,
-    reportedAt TEXT,
-    createdAt TEXT NOT NULL,
-    updatedAt TEXT NOT NULL,
-    FOREIGN KEY (restaurantId) REFERENCES restaurants(id) ON DELETE CASCADE,
-    FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE,
-    FOREIGN KEY (customerId) REFERENCES users(id) ON DELETE CASCADE
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_reviews_restaurant ON reviews(restaurantId);
-  CREATE INDEX IF NOT EXISTS idx_reviews_customer ON reviews(customerId);
-  CREATE INDEX IF NOT EXISTS idx_reviews_reservation ON reviews(reservationId);
-  CREATE INDEX IF NOT EXISTS idx_reservations_customer ON reservations(customerId);
-  CREATE INDEX IF NOT EXISTS idx_reservations_restaurant_date ON reservations(restaurantId, reservationDate);
-  `);
-
-  // 3. Safe idempotent migrations
-  try { db.exec('ALTER TABLE menu_items ADD COLUMN isNonVegetarian INTEGER NOT NULL DEFAULT 0'); } catch (e) {}
-  try { db.exec("ALTER TABLE tables ADD COLUMN shape TEXT DEFAULT 'rectangle'"); } catch (e) {}
-  try { db.exec("ALTER TABLE tables ADD COLUMN posX REAL DEFAULT 50"); } catch (e) {}
-  try { db.exec("ALTER TABLE tables ADD COLUMN posY REAL DEFAULT 50"); } catch (e) {}
-  try { db.exec("ALTER TABLE tables ADD COLUMN rotation REAL DEFAULT 0"); } catch (e) {}
-  try { db.exec("ALTER TABLE reservations ADD COLUMN assignedSeatNumbers TEXT"); } catch (e) {}
-  try { db.exec('ALTER TABLE restaurants ADD COLUMN rejectionReason TEXT'); } catch (e) {}
-  try { db.exec('ALTER TABLE restaurants ADD COLUMN reviewedByAdminId TEXT'); } catch (e) {}
-  try { db.exec('ALTER TABLE restaurants ADD COLUMN reviewedAt TEXT'); } catch (e) {}
-  try { db.exec('ALTER TABLE restaurants ADD COLUMN suspendedAt TEXT'); } catch (e) {}
-  try { db.exec('ALTER TABLE restaurants ADD COLUMN suspendedReason TEXT'); } catch (e) {}
-
-  // 4. Atomic, dependency-respecting seed transaction using INSERT OR IGNORE
-  // Guarantees all parent records exist before children and never overwrites user data
-  const seedTransaction = db.transaction(() => {
-    // Step A: Users (Parent of restaurants, reservations, reviews)
-    const insertUser = db.prepare(`
-      INSERT OR IGNORE INTO users (id, email, fullName, phone, role, password, ownedRestaurantId, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    for (const u of INITIAL_USERS) {
-      insertUser.run(u.id, u.email, u.fullName, u.phone || null, u.role, u.password || 'password123', u.ownedRestaurantId || null, u.createdAt);
+      console.log('[serverDb] Baseline seed collections successfully primed in MongoDB Atlas.');
     }
 
-    // Step A.1: Provision Super Admin from server environment variables if configured
+    // Provision admin from environment variables if set
     if (process.env.ADMIN_INITIAL_EMAIL && process.env.ADMIN_INITIAL_PASSWORD) {
       const envEmail = process.env.ADMIN_INITIAL_EMAIL.trim().toLowerCase();
       const envPass = process.env.ADMIN_INITIAL_PASSWORD.trim();
       const envName = process.env.ADMIN_INITIAL_NAME?.trim() || 'Super Administrator';
-      const existing = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(envEmail);
+      const existing = await db.collection<UserProfile>(COLLECTIONS.USERS).findOne({
+        email: { $regex: new RegExp(`^${envEmail}$`, 'i') }
+      });
+
+      const hashed = await hashPassword(envPass);
       if (existing) {
-        db.prepare('UPDATE users SET role = ?, password = ?, fullName = ? WHERE LOWER(email) = ?')
-          .run('admin', envPass, envName, envEmail);
+        await db.collection(COLLECTIONS.USERS).updateOne(
+          { _id: existing.id as any },
+          { $set: { role: 'admin', password: hashed, fullName: envName } }
+        );
       } else {
-        insertUser.run('admin-primary', envEmail, envName, null, 'admin', envPass, null, new Date().toISOString());
+        await db.collection(COLLECTIONS.USERS).insertOne({
+          _id: 'admin-primary' as any,
+          id: 'admin-primary',
+          email: envEmail,
+          fullName: envName,
+          role: 'admin',
+          password: hashed,
+          createdAt: new Date().toISOString()
+        } as any);
       }
     }
 
-    // Step B: Restaurants (Parent of hours, closures, tables, categories, items, reservations, reviews)
-    const insertRest = db.prepare(`
-      INSERT OR IGNORE INTO restaurants (
-        id, ownerId, name, slug, tagline, description, cuisineType, phone, email, address, city,
-        postalCode, coverImageUrl, logoUrl, priceTier, seatingManagementMode, totalSeatingCapacity,
-        slotDurationMinutes, bufferTimeMinutes, advanceBookingDays, minPartySize, maxPartySize,
-        cancellationPolicy, cancellationCutoffHours, requiresManualApproval, status, rating, reviewCount, createdAt
-      ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?
-      )
-    `);
-    for (const r of INITIAL_RESTAURANTS) {
-      insertRest.run(
-        r.id, r.ownerId, r.name, r.slug, r.tagline, r.description, JSON.stringify(r.cuisineType),
-        r.phone, r.email, r.address, r.city, r.postalCode, r.coverImageUrl, r.logoUrl || null,
-        r.priceTier, r.seatingManagementMode, r.totalSeatingCapacity, r.slotDurationMinutes,
-        r.bufferTimeMinutes, r.advanceBookingDays, r.minPartySize, r.maxPartySize,
-        r.cancellationPolicy, r.cancellationCutoffHours, r.requiresManualApproval ? 1 : 0,
-        r.status, r.rating || 4.9, r.reviewCount || 100, r.createdAt
-      );
-    }
-
-    // Step C: Tables (Parent of reservations.assignedTableId)
-    const insertTable = db.prepare(`
-      INSERT OR IGNORE INTO tables (id, restaurantId, tableNumber, capacity, locationArea, isActive, shape, posX, posY, rotation)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    for (const t of INITIAL_TABLES) {
-      insertTable.run(t.id, t.restaurantId, t.tableNumber, t.capacity, t.locationArea || null, t.isActive ? 1 : 0, t.shape || 'rectangle', t.posX ?? 50, t.posY ?? 50, t.rotation ?? 0);
-    }
-
-    // Step D: Restaurant Hours
-    const insertHour = db.prepare(`
-      INSERT OR IGNORE INTO restaurant_hours (id, restaurantId, dayOfWeek, openTime, closeTime, isClosed)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    for (const h of INITIAL_HOURS) {
-      insertHour.run(h.id, h.restaurantId, h.dayOfWeek, h.openTime, h.closeTime, h.isClosed ? 1 : 0);
-    }
-
-    // Step E: Menu Categories (Parent of menu_items)
-    const insertCategory = db.prepare(`
-      INSERT OR IGNORE INTO menu_categories (id, restaurantId, name, displayOrder, description, isActive)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    for (const c of INITIAL_MENU_CATEGORIES) {
-      insertCategory.run(c.id, c.restaurantId, c.name, c.displayOrder, c.description || null, c.isActive ? 1 : 0);
-    }
-
-    // Step F: Menu Items
-    const insertMenuItem = db.prepare(`
-      INSERT OR IGNORE INTO menu_items (
-        id, restaurantId, categoryId, name, description, price, imageUrl, isAvailable, isVegetarian, isNonVegetarian, isVegan, isGlutenFree, preparationNotes, displayOrder
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    for (const m of INITIAL_MENU_ITEMS) {
-      insertMenuItem.run(
-        m.id, m.restaurantId, m.categoryId, m.name, m.description || null, m.price, m.imageUrl || null,
-        m.isAvailable ? 1 : 0, m.isVegetarian ? 1 : 0, m.isNonVegetarian ? 1 : 0, m.isVegan ? 1 : 0, m.isGlutenFree ? 1 : 0,
-        m.preparationNotes || null, m.displayOrder || 0
-      );
-    }
-
-    // Step G: Reservations (Parent of reviews)
-    const insertRes = db.prepare(`
-      INSERT OR IGNORE INTO reservations (
-        id, bookingReference, restaurantId, restaurantName, restaurantSlug, customerId,
-        customerName, customerEmail, customerPhone, partySize, reservationDate, startTime,
-        endTime, status, assignedTableId, assignedTableName, assignedSeatNumbers, specialRequests, orderSubtotal,
-        orderTax, estimatedTotal, items, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    for (const res of INITIAL_RESERVATIONS) {
-      insertRes.run(
-        res.id, res.bookingReference, res.restaurantId, res.restaurantName || null, res.restaurantSlug || null,
-        res.customerId, res.customerName, res.customerEmail, res.customerPhone, res.partySize,
-        res.reservationDate, res.startTime, res.endTime, res.status, res.assignedTableId || null,
-        res.assignedTableName || null, res.assignedSeatNumbers ? JSON.stringify(res.assignedSeatNumbers) : null,
-        res.specialRequests || null, res.orderSubtotal, res.orderTax,
-        res.estimatedTotal, JSON.stringify(res.items || []), res.createdAt, res.updatedAt
-      );
-    }
-
-    // Step H: Reviews (Dependent on users, restaurants, reservations)
-    const insertRev = db.prepare(`
-      INSERT OR IGNORE INTO reviews (
-        id, restaurantId, customerId, customerName, customerEmail, reservationId,
-        overallRating, foodRating, serviceRating, ambienceRating, valueRating,
-        comment, tags, ownerResponse, ownerRespondedAt, isReported, reportReason, reportedAt, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    for (const rev of INITIAL_REVIEWS) {
-      insertRev.run(
-        rev.id, rev.restaurantId, rev.customerId, rev.customerName, rev.customerEmail || null, rev.reservationId,
-        Math.round(rev.overallRating), rev.foodRating ? Math.round(rev.foodRating) : null,
-        rev.serviceRating ? Math.round(rev.serviceRating) : null, rev.ambienceRating ? Math.round(rev.ambienceRating) : null,
-        rev.valueRating ? Math.round(rev.valueRating) : null, rev.comment || null,
-        rev.tags ? JSON.stringify(rev.tags) : null, rev.ownerResponse || null, rev.ownerRespondedAt || null,
-        rev.isReported ? 1 : 0, rev.reportReason || null, rev.reportedAt || null,
-        rev.createdAt, rev.updatedAt
-      );
-    }
-
-    // Step I: Synchronize restaurant ratings with verified reviews
-    const allRests = db.prepare('SELECT id FROM restaurants').all() as { id: string }[];
-    for (const r of allRests) {
-      const revStats = db.prepare(`
-        SELECT COUNT(*) as count, AVG(overallRating) as avgRating 
-        FROM reviews WHERE restaurantId = ?
-      `).get(r.id) as { count: number; avgRating: number | null };
-      const realCount = revStats?.count || 0;
-      if (realCount > 0) {
-        const realRating = Number((revStats.avgRating || 0).toFixed(1));
-        db.prepare('UPDATE restaurants SET rating = ?, reviewCount = ? WHERE id = ?').run(realRating, realCount, r.id);
-      }
-    }
-  });
-
-  seedTransaction();
-
-  // 5. Run PRAGMA foreign_key_check to verify 0 foreign key violations
-  const fkViolations = db.pragma('foreign_key_check') as any[];
-  if (fkViolations && fkViolations.length > 0) {
-    console.warn('[serverDb] Foreign key violations found during check:', fkViolations);
+    hasCheckedInitialSeed = true;
+  } catch (err: any) {
+    console.warn('[serverDb] ensureMongoSeeded warning:', err.message);
   }
 }
 
-// Lazy memoized SQLite database accessor
-let _sqliteInstance: any = null;
-let _sqliteInitialized = false;
-
-function getSqlite(): any {
-  if (_sqliteInitialized) return _sqliteInstance;
-  _sqliteInitialized = true;
-  _sqliteInstance = initSqliteDatabase();
-  if (_sqliteInstance) {
-    try {
-      ensureSchemaAndSeed(_sqliteInstance);
-    } catch (err) {
-      console.warn('[serverDb] SQLite schema/seed failed, running in memory fallback mode:', err);
-    }
-  }
-  return _sqliteInstance;
+// Clean MongoDB document removing internal _id from client return
+function cleanDoc<T>(doc: any): T {
+  if (!doc) return doc;
+  const { _id, ...rest } = doc;
+  return rest as T;
 }
 
-// Lazy proxy for backward-compatible db queries across serverDb methods
-const sqlite: any = new Proxy({}, {
-  get(_target, prop) {
-    const db = getSqlite();
-    if (!db) return undefined;
-    const val = db[prop];
-    return typeof val === 'function' ? val.bind(db) : val;
-  }
-});
-
-function safeQuery<T>(sqlFn: () => T, memoryFallbackFn: () => T): T {
-  const db = getSqlite();
-  if (db) {
-    try {
-      return sqlFn();
-    } catch (err) {
-      console.warn('[serverDb] SQLite query error, using memory fallback:', err);
-    }
-  }
-  return memoryFallbackFn();
-}
-
-function safeMutation<T>(sqlFn: () => T, memoryMutationFn: () => T): T {
-  const result = memoryMutationFn();
-  const db = getSqlite();
-  if (db) {
-    try {
-      sqlFn();
-    } catch (err) {
-      console.warn('[serverDb] SQLite mutation error, memory store was updated:', err);
-    }
-  }
-  return result;
-}
-
-// Map helper functions
-function mapRestaurant(row: any): Restaurant {
-  return {
-    ...row,
-    cuisineType: JSON.parse(row.cuisineType || '[]'),
-    requiresManualApproval: Boolean(row.requiresManualApproval),
-    timezone: row.timezone || 'America/New_York',
-    rejectionReason: row.rejectionReason || undefined,
-    reviewedByAdminId: row.reviewedByAdminId || undefined,
-    reviewedAt: row.reviewedAt || undefined,
-    suspendedAt: row.suspendedAt || undefined,
-    suspendedReason: row.suspendedReason || undefined
-  };
-}
-
-function mapReservation(row: any): Reservation {
-  return {
-    ...row,
-    items: JSON.parse(row.items || '[]'),
-    assignedSeatNumbers: row.assignedSeatNumbers ? JSON.parse(row.assignedSeatNumbers) : undefined
-  };
-}
-
-function mapReview(row: any): Review {
-  return {
-    ...row,
-    overallRating: Number(row.overallRating),
-    foodRating: row.foodRating !== null && row.foodRating !== undefined ? Number(row.foodRating) : undefined,
-    serviceRating: row.serviceRating !== null && row.serviceRating !== undefined ? Number(row.serviceRating) : undefined,
-    ambienceRating: row.ambienceRating !== null && row.ambienceRating !== undefined ? Number(row.ambienceRating) : undefined,
-    valueRating: row.valueRating !== null && row.valueRating !== undefined ? Number(row.valueRating) : undefined,
-    tags: row.tags ? JSON.parse(row.tags) : [],
-    isReported: Boolean(row.isReported)
-  };
-}
-
-// Server Database Service
 export const serverDb = {
   // RESTAURANTS
-  getRestaurants: (): Restaurant[] => {
-    return safeQuery(
-      () => sqlite.prepare('SELECT * FROM restaurants ORDER BY name ASC').all().map(mapRestaurant),
-      () => memRestaurants
-    );
+  getRestaurants: async (): Promise<Restaurant[]> => {
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      const list = await db.collection<Restaurant>(COLLECTIONS.RESTAURANTS)
+        .find({})
+        .sort({ name: 1 })
+        .toArray();
+      return list.map(cleanDoc<Restaurant>);
+    }
+    return [...memRestaurants];
   },
 
-  getRestaurantBySlug: (slug: string): Restaurant | null => {
-    return safeQuery(
-      () => {
-        let row = sqlite.prepare('SELECT * FROM restaurants WHERE slug = ?').get(slug);
-        if (!row) {
-          row = sqlite.prepare('SELECT * FROM restaurants WHERE id = ?').get(slug);
-        }
-        return row ? mapRestaurant(row) : null;
-      },
-      () => memRestaurants.find(r => r.slug === slug || r.id === slug) || null
-    );
+  getRestaurantBySlug: async (slug: string): Promise<Restaurant | null> => {
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      const rest = await db.collection<Restaurant>(COLLECTIONS.RESTAURANTS).findOne({
+        $or: [{ slug }, { id: slug }]
+      });
+      return cleanDoc<Restaurant>(rest);
+    }
+    return memRestaurants.find(r => r.slug === slug || r.id === slug) || null;
   },
 
-  getRestaurantById: (id: string): Restaurant | null => {
-    return safeQuery(
-      () => {
-        let row = sqlite.prepare('SELECT * FROM restaurants WHERE id = ?').get(id);
-        if (!row) {
-          row = sqlite.prepare('SELECT * FROM restaurants WHERE slug = ?').get(id);
-        }
-        return row ? mapRestaurant(row) : null;
-      },
-      () => memRestaurants.find(r => r.id === id || r.slug === id) || null
-    );
+  getRestaurantById: async (id: string): Promise<Restaurant | null> => {
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      const rest = await db.collection<Restaurant>(COLLECTIONS.RESTAURANTS).findOne({
+        $or: [{ id }, { slug: id }]
+      });
+      return cleanDoc<Restaurant>(rest);
+    }
+    return memRestaurants.find(r => r.id === id || r.slug === id) || null;
   },
 
-  saveRestaurant: (r: Restaurant): Restaurant => {
+  saveRestaurant: async (r: Restaurant): Promise<Restaurant> => {
     const formatted: Restaurant = {
       ...r,
       coverImageUrl: r.coverImageUrl || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80',
@@ -611,399 +229,319 @@ export const serverDb = {
       createdAt: r.createdAt || new Date().toISOString()
     };
 
-    return safeMutation(
-      () => {
-        const existing = sqlite.prepare('SELECT id FROM restaurants WHERE id = ?').get(formatted.id);
-        if (existing) {
-          sqlite.prepare(`
-            UPDATE restaurants SET 
-              name = ?, tagline = ?, description = ?, cuisineType = ?, phone = ?, email = ?,
-              address = ?, city = ?, coverImageUrl = ?, priceTier = ?, seatingManagementMode = ?,
-              totalSeatingCapacity = ?, slotDurationMinutes = ?, bufferTimeMinutes = ?,
-              minPartySize = ?, maxPartySize = ?, cancellationPolicy = ?, cancellationCutoffHours = ?,
-              requiresManualApproval = ?, status = ?, rejectionReason = ?, reviewedByAdminId = ?,
-              reviewedAt = ?, suspendedAt = ?, suspendedReason = ?
-            WHERE id = ?
-          `).run(
-            formatted.name, formatted.tagline || null, formatted.description || null, JSON.stringify(formatted.cuisineType || []), formatted.phone, formatted.email,
-            formatted.address, formatted.city, formatted.coverImageUrl, formatted.priceTier, formatted.seatingManagementMode,
-            formatted.totalSeatingCapacity, formatted.slotDurationMinutes, formatted.bufferTimeMinutes,
-            formatted.minPartySize, formatted.maxPartySize, formatted.cancellationPolicy, formatted.cancellationCutoffHours,
-            formatted.requiresManualApproval ? 1 : 0, formatted.status,
-            formatted.rejectionReason || null, formatted.reviewedByAdminId || null, formatted.reviewedAt || null,
-            formatted.suspendedAt || null, formatted.suspendedReason || null, formatted.id
-          );
-        } else {
-          sqlite.prepare(`
-            INSERT INTO restaurants (
-              id, ownerId, name, slug, tagline, description, cuisineType, phone, email, address, city,
-              coverImageUrl, priceTier, seatingManagementMode, totalSeatingCapacity, slotDurationMinutes,
-              bufferTimeMinutes, minPartySize, maxPartySize, cancellationPolicy, cancellationCutoffHours,
-              requiresManualApproval, status, rejectionReason, reviewedByAdminId, reviewedAt,
-              suspendedAt, suspendedReason, createdAt
-            ) VALUES (
-              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-            )
-          `).run(
-            formatted.id, formatted.ownerId, formatted.name, formatted.slug, formatted.tagline || null, formatted.description || null, JSON.stringify(formatted.cuisineType || []),
-            formatted.phone, formatted.email, formatted.address, formatted.city, formatted.coverImageUrl, formatted.priceTier, formatted.seatingManagementMode,
-            formatted.totalSeatingCapacity, formatted.slotDurationMinutes, formatted.bufferTimeMinutes, formatted.minPartySize,
-            formatted.maxPartySize, formatted.cancellationPolicy, formatted.cancellationCutoffHours,
-            formatted.requiresManualApproval ? 1 : 0, formatted.status,
-            formatted.rejectionReason || null, formatted.reviewedByAdminId || null, formatted.reviewedAt || null,
-            formatted.suspendedAt || null, formatted.suspendedReason || null, formatted.createdAt
-          );
-        }
-        return formatted;
-      },
-      () => {
-        const idx = memRestaurants.findIndex(x => x.id === formatted.id);
-        if (idx >= 0) memRestaurants[idx] = formatted;
-        else memRestaurants.push(formatted);
-        return formatted;
-      }
-    );
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      await db.collection(COLLECTIONS.RESTAURANTS).updateOne(
+        { id: formatted.id },
+        { $set: { ...formatted, _id: formatted.id } },
+        { upsert: true }
+      );
+      return formatted;
+    }
+
+    const idx = memRestaurants.findIndex(item => item.id === formatted.id);
+    if (idx >= 0) memRestaurants[idx] = formatted;
+    else memRestaurants.push(formatted);
+    return formatted;
   },
 
   // TABLES
-  getTables: (restaurantId: string): DiningTable[] => {
-    return safeQuery(
-      () => {
-        const rows = sqlite.prepare('SELECT * FROM tables WHERE restaurantId = ? ORDER BY tableNumber ASC').all(restaurantId);
-        return rows.map((r: any) => ({
-          ...r,
-          isActive: Boolean(r.isActive),
-          shape: r.shape || 'rectangle',
-          posX: r.posX !== null && r.posX !== undefined ? Number(r.posX) : 50,
-          posY: r.posY !== null && r.posY !== undefined ? Number(r.posY) : 50,
-          rotation: r.rotation !== null && r.rotation !== undefined ? Number(r.rotation) : 0,
+  getTables: async (restaurantId: string): Promise<DiningTable[]> => {
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      const list = await db.collection<DiningTable>(COLLECTIONS.TABLES)
+        .find({ restaurantId })
+        .sort({ tableNumber: 1 })
+        .toArray();
+      return list.map(cleanDoc<DiningTable>);
+    }
+    return memTables.filter(t => t.restaurantId === restaurantId);
+  },
+
+  saveTable: async (t: DiningTable): Promise<DiningTable> => {
+    const tableDoc = {
+      ...t,
+      capacity: Number(t.capacity) || 2,
+      isActive: Boolean(t.isActive),
+      shape: t.shape || 'rectangle',
+      posX: Number(t.posX ?? 50),
+      posY: Number(t.posY ?? 50),
+      rotation: Number(t.rotation ?? 0)
+    };
+
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      await db.collection(COLLECTIONS.TABLES).updateOne(
+        { id: tableDoc.id },
+        { $set: { ...tableDoc, _id: tableDoc.id } },
+        { upsert: true }
+      );
+      return tableDoc;
+    }
+
+    const idx = memTables.findIndex(item => item.id === tableDoc.id);
+    if (idx >= 0) memTables[idx] = tableDoc;
+    else memTables.push(tableDoc);
+    return tableDoc;
+  },
+
+  deleteTable: async (id: string): Promise<void> => {
+    if (isMongoConfigured()) {
+      const db = await getDb();
+      await db.collection(COLLECTIONS.TABLES).deleteOne({ id });
+      return;
+    }
+    memTables = memTables.filter(t => t.id !== id);
+  },
+
+  // MENU CATEGORIES
+  getMenuCategories: async (restaurantId: string): Promise<MenuCategory[]> => {
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      const list = await db.collection<MenuCategory>(COLLECTIONS.MENU_CATEGORIES)
+        .find({ restaurantId })
+        .sort({ displayOrder: 1 })
+        .toArray();
+      return list.map(cleanDoc<MenuCategory>);
+    }
+    return memCategories.filter(c => c.restaurantId === restaurantId).sort((a, b) => a.displayOrder - b.displayOrder);
+  },
+
+  saveMenuCategory: async (c: MenuCategory): Promise<MenuCategory> => {
+    const catDoc = {
+      ...c,
+      displayOrder: Number(c.displayOrder || 0),
+      isActive: Boolean(c.isActive)
+    };
+
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      await db.collection(COLLECTIONS.MENU_CATEGORIES).updateOne(
+        { id: catDoc.id },
+        { $set: { ...catDoc, _id: catDoc.id } },
+        { upsert: true }
+      );
+      return catDoc;
+    }
+
+    const idx = memCategories.findIndex(item => item.id === catDoc.id);
+    if (idx >= 0) memCategories[idx] = catDoc;
+    else memCategories.push(catDoc);
+    return catDoc;
+  },
+
+  deleteMenuCategory: async (id: string): Promise<void> => {
+    if (isMongoConfigured()) {
+      const db = await getDb();
+      await db.collection(COLLECTIONS.MENU_CATEGORIES).deleteOne({ id });
+      return;
+    }
+    memCategories = memCategories.filter(c => c.id !== id);
+  },
+
+  // MENU ITEMS
+  getMenuItems: async (restaurantId: string): Promise<MenuItem[]> => {
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      const list = await db.collection<MenuItem>(COLLECTIONS.MENU_ITEMS)
+        .find({ restaurantId })
+        .sort({ displayOrder: 1 })
+        .toArray();
+      return list.map(cleanDoc<MenuItem>);
+    }
+    return memMenuItems.filter(m => m.restaurantId === restaurantId).sort((a, b) => a.displayOrder - b.displayOrder);
+  },
+
+  saveMenuItem: async (m: MenuItem): Promise<MenuItem> => {
+    const itemDoc = {
+      ...m,
+      price: Number(m.price) || 0,
+      displayOrder: Number(m.displayOrder || 0),
+      isAvailable: Boolean(m.isAvailable),
+      isVegetarian: Boolean(m.isVegetarian),
+      isNonVegetarian: Boolean(m.isNonVegetarian),
+      isVegan: Boolean(m.isVegan),
+      isGlutenFree: Boolean(m.isGlutenFree)
+    };
+
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      await db.collection(COLLECTIONS.MENU_ITEMS).updateOne(
+        { id: itemDoc.id },
+        { $set: { ...itemDoc, _id: itemDoc.id } },
+        { upsert: true }
+      );
+      return itemDoc;
+    }
+
+    const idx = memMenuItems.findIndex(item => item.id === itemDoc.id);
+    if (idx >= 0) memMenuItems[idx] = itemDoc;
+    else memMenuItems.push(itemDoc);
+    return itemDoc;
+  },
+
+  deleteMenuItem: async (id: string): Promise<void> => {
+    if (isMongoConfigured()) {
+      const db = await getDb();
+      await db.collection(COLLECTIONS.MENU_ITEMS).deleteOne({ id });
+      return;
+    }
+    memMenuItems = memMenuItems.filter(m => m.id !== id);
+  },
+
+  // RESTAURANT HOURS
+  getRestaurantHours: async (restaurantId: string): Promise<RestaurantHours[]> => {
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      const list = await db.collection<RestaurantHours>(COLLECTIONS.RESTAURANT_HOURS)
+        .find({ restaurantId })
+        .sort({ dayOfWeek: 1 })
+        .toArray();
+      return list.map(cleanDoc<RestaurantHours>);
+    }
+    return memHours.filter(h => h.restaurantId === restaurantId).sort((a, b) => a.dayOfWeek - b.dayOfWeek);
+  },
+
+  saveRestaurantHours: async (restaurantId: string, hours: RestaurantHours[]): Promise<void> => {
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      // Replace existing hours for this restaurant
+      await db.collection(COLLECTIONS.RESTAURANT_HOURS).deleteMany({ restaurantId });
+      if (hours.length > 0) {
+        const docs = hours.map(h => ({
+          ...h,
+          _id: h.id,
+          restaurantId,
+          dayOfWeek: Number(h.dayOfWeek),
+          isClosed: Boolean(h.isClosed)
         }));
-      },
-      () => memTables.filter(t => t.restaurantId === restaurantId)
-    );
-  },
-
-  saveTable: (t: DiningTable): DiningTable => {
-    return safeMutation(
-      () => {
-        const existing = sqlite.prepare('SELECT id FROM tables WHERE id = ?').get(t.id);
-        const shape = t.shape || 'rectangle';
-        const posX = t.posX !== undefined ? t.posX : 50;
-        const posY = t.posY !== undefined ? t.posY : 50;
-        const rotation = t.rotation !== undefined ? t.rotation : 0;
-
-        if (existing) {
-          sqlite.prepare(`
-            UPDATE tables SET 
-              tableNumber = ?, capacity = ?, locationArea = ?, isActive = ?,
-              shape = ?, posX = ?, posY = ?, rotation = ?
-            WHERE id = ?
-          `).run(t.tableNumber, t.capacity, t.locationArea, t.isActive ? 1 : 0, shape, posX, posY, rotation, t.id);
-        } else {
-          sqlite.prepare(`
-            INSERT INTO tables (id, restaurantId, tableNumber, capacity, locationArea, isActive, shape, posX, posY, rotation) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(t.id, t.restaurantId, t.tableNumber, t.capacity, t.locationArea, t.isActive ? 1 : 0, shape, posX, posY, rotation);
-        }
-        return t;
-      },
-      () => {
-        const idx = memTables.findIndex(x => x.id === t.id);
-        if (idx >= 0) memTables[idx] = t;
-        else memTables.push(t);
-        return t;
+        await db.collection<any>(COLLECTIONS.RESTAURANT_HOURS).insertMany(docs);
       }
-    );
+      return;
+    }
+
+    memHours = memHours.filter(h => h.restaurantId !== restaurantId);
+    memHours.push(...hours);
   },
 
-  deleteTable: (id: string) => {
-    safeMutation(
-      () => { sqlite.prepare('DELETE FROM tables WHERE id = ?').run(id); },
-      () => { const idx = memTables.findIndex(x => x.id === id); if (idx >= 0) memTables.splice(idx, 1); }
-    );
+  // RESTAURANT CLOSURES
+  getRestaurantClosures: async (restaurantId: string): Promise<RestaurantClosure[]> => {
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      const list = await db.collection<RestaurantClosure>(COLLECTIONS.RESTAURANT_CLOSURES)
+        .find({ restaurantId })
+        .sort({ closureDate: 1 })
+        .toArray();
+      return list.map(cleanDoc<RestaurantClosure>);
+    }
+    return memClosures.filter(c => c.restaurantId === restaurantId);
   },
 
-  // MENU
-  getMenuCategories: (restaurantId: string): MenuCategory[] => {
-    return safeQuery(
-      () => {
-        const rows = sqlite.prepare('SELECT * FROM menu_categories WHERE restaurantId = ? ORDER BY displayOrder ASC').all(restaurantId);
-        return rows.map((r: any) => ({ ...r, isActive: Boolean(r.isActive) }));
-      },
-      () => memCategories.filter(c => c.restaurantId === restaurantId)
-    );
+  getRestaurantClosure: async (restaurantId: string, date: string): Promise<RestaurantClosure | null> => {
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      const closure = await db.collection<RestaurantClosure>(COLLECTIONS.RESTAURANT_CLOSURES).findOne({
+        restaurantId,
+        closureDate: date
+      });
+      return cleanDoc<RestaurantClosure>(closure);
+    }
+    return memClosures.find(c => c.restaurantId === restaurantId && c.closureDate === date) || null;
   },
 
-  saveMenuCategory: (c: MenuCategory): MenuCategory => {
-    return safeMutation(
-      () => {
-        const existing = sqlite.prepare('SELECT id FROM menu_categories WHERE id = ?').get(c.id);
-        if (existing) {
-          sqlite.prepare('UPDATE menu_categories SET name = ?, displayOrder = ?, isActive = ? WHERE id = ?')
-            .run(c.name, c.displayOrder, c.isActive ? 1 : 0, c.id);
-        } else {
-          sqlite.prepare('INSERT INTO menu_categories (id, restaurantId, name, displayOrder, isActive) VALUES (?, ?, ?, ?, ?)')
-            .run(c.id, c.restaurantId, c.name, c.displayOrder, c.isActive ? 1 : 0);
-        }
-        return c;
-      },
-      () => {
-        const idx = memCategories.findIndex(x => x.id === c.id);
-        if (idx >= 0) memCategories[idx] = c;
-        else memCategories.push(c);
-        return c;
-      }
-    );
+  saveRestaurantClosure: async (closure: RestaurantClosure): Promise<RestaurantClosure> => {
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      await db.collection(COLLECTIONS.RESTAURANT_CLOSURES).updateOne(
+        { id: closure.id },
+        { $set: { ...closure, _id: closure.id } },
+        { upsert: true }
+      );
+      return closure;
+    }
+    const idx = memClosures.findIndex(c => c.id === closure.id);
+    if (idx >= 0) memClosures[idx] = closure;
+    else memClosures.push(closure);
+    return closure;
   },
 
-  deleteMenuCategory: (id: string) => {
-    safeMutation(
-      () => { sqlite.prepare('DELETE FROM menu_categories WHERE id = ?').run(id); },
-      () => { const idx = memCategories.findIndex(x => x.id === id); if (idx >= 0) memCategories.splice(idx, 1); }
-    );
+  // RESERVATIONS
+  getReservations: async (filter?: { restaurantId?: string; customerId?: string }): Promise<Reservation[]> => {
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      const query: any = {};
+      if (filter?.restaurantId) query.restaurantId = filter.restaurantId;
+      if (filter?.customerId) query.customerId = filter.customerId;
+
+      const list = await db.collection<Reservation>(COLLECTIONS.RESERVATIONS)
+        .find(query)
+        .sort({ reservationDate: -1, startTime: -1 })
+        .toArray();
+      return list.map(cleanDoc<Reservation>);
+    }
+
+    let list = [...memReservations];
+    if (filter?.restaurantId) list = list.filter(r => r.restaurantId === filter.restaurantId);
+    if (filter?.customerId) list = list.filter(r => r.customerId === filter.customerId);
+    return list;
   },
 
-  getMenuItems: (restaurantId: string): MenuItem[] => {
-    return safeQuery(
-      () => {
-        const rows = sqlite.prepare('SELECT * FROM menu_items WHERE restaurantId = ? ORDER BY displayOrder ASC').all(restaurantId);
-        return rows.map((r: any) => ({
-          ...r,
-          isAvailable: Boolean(r.isAvailable),
-          isVegetarian: Boolean(r.isVegetarian),
-          isNonVegetarian: Boolean(r.isNonVegetarian),
-          isVegan: Boolean(r.isVegan),
-          isGlutenFree: Boolean(r.isGlutenFree)
-        }));
-      },
-      () => memMenuItems.filter(m => m.restaurantId === restaurantId)
-    );
+  getReservationById: async (id: string): Promise<Reservation | null> => {
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      const res = await db.collection<Reservation>(COLLECTIONS.RESERVATIONS).findOne({
+        $or: [{ id }, { bookingReference: id }]
+      });
+      return cleanDoc<Reservation>(res);
+    }
+    return memReservations.find(r => r.id === id || r.bookingReference === id) || null;
   },
 
-  saveMenuItem: (m: MenuItem): MenuItem => {
-    return safeMutation(
-      () => {
-        const existing = sqlite.prepare('SELECT id FROM menu_items WHERE id = ?').get(m.id);
-        if (existing) {
-          sqlite.prepare(`
-            UPDATE menu_items SET 
-              categoryId = ?, name = ?, description = ?, price = ?, imageUrl = ?,
-              isAvailable = ?, isVegetarian = ?, isNonVegetarian = ?, isGlutenFree = ?, preparationNotes = ?
-            WHERE id = ?
-          `).run(
-            m.categoryId, m.name, m.description, m.price, m.imageUrl || null,
-            m.isAvailable ? 1 : 0, m.isVegetarian ? 1 : 0, m.isNonVegetarian ? 1 : 0, m.isGlutenFree ? 1 : 0,
-            m.preparationNotes || null, m.id
-          );
-        } else {
-          sqlite.prepare(`
-            INSERT INTO menu_items (
-              id, restaurantId, categoryId, name, description, price, imageUrl, isAvailable, isVegetarian, isNonVegetarian, isGlutenFree, preparationNotes, displayOrder
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(
-            m.id, m.restaurantId, m.categoryId, m.name, m.description, m.price, m.imageUrl || null,
-            m.isAvailable ? 1 : 0, m.isVegetarian ? 1 : 0, m.isNonVegetarian ? 1 : 0, m.isGlutenFree ? 1 : 0,
-            m.preparationNotes || null, m.displayOrder
-          );
-        }
-        return m;
-      },
-      () => {
-        const idx = memMenuItems.findIndex(x => x.id === m.id);
-        if (idx >= 0) memMenuItems[idx] = m;
-        else memMenuItems.push(m);
-        return m;
-      }
-    );
+  getActiveBookingForCustomer: async (
+    restaurantId: string,
+    customerId: string,
+    date: string
+  ): Promise<Reservation | null> => {
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      const res = await db.collection<Reservation>(COLLECTIONS.RESERVATIONS).findOne({
+        restaurantId,
+        customerId,
+        reservationDate: date,
+        status: { $in: ['pending', 'confirmed'] }
+      });
+      return cleanDoc<Reservation>(res);
+    }
+    return memReservations.find(
+      r => r.restaurantId === restaurantId &&
+           r.customerId === customerId &&
+           r.reservationDate === date &&
+           ['pending', 'confirmed'].includes(r.status)
+    ) || null;
   },
 
-  deleteMenuItem: (id: string) => {
-    safeMutation(
-      () => { sqlite.prepare('DELETE FROM menu_items WHERE id = ?').run(id); },
-      () => { const idx = memMenuItems.findIndex(x => x.id === id); if (idx >= 0) memMenuItems.splice(idx, 1); }
-    );
-  },
-
-  // HOURS & SCHEDULE
-  getRestaurantHours: (restaurantId: string): RestaurantHours[] => {
-    const rest = serverDb.getRestaurantById(restaurantId);
-    const targetId = rest ? rest.id : restaurantId;
-
-    return safeQuery(
-      () => {
-        const rows = sqlite.prepare('SELECT * FROM restaurant_hours WHERE restaurantId = ? ORDER BY dayOfWeek ASC').all(targetId);
-        if (!rows || rows.length === 0) {
-          const defaults = INITIAL_HOURS.filter(h => h.restaurantId === targetId);
-          if (defaults.length > 0) {
-            try {
-              const insert = sqlite.prepare('INSERT OR IGNORE INTO restaurant_hours (id, restaurantId, dayOfWeek, openTime, closeTime, isClosed) VALUES (?, ?, ?, ?, ?, ?)');
-              for (const h of defaults) {
-                insert.run(h.id, targetId, h.dayOfWeek, h.openTime, h.closeTime, h.isClosed ? 1 : 0);
-              }
-              return defaults;
-            } catch (e) {
-              return defaults;
-            }
-          }
-          const standardHours: RestaurantHours[] = [0, 1, 2, 3, 4, 5, 6].map(day => ({
-            id: `gen-hour-${targetId}-${day}`,
-            restaurantId: targetId,
-            dayOfWeek: day,
-            openTime: '11:30',
-            closeTime: '23:00',
-            isClosed: false
-          }));
-          try {
-            const insert = sqlite.prepare('INSERT OR IGNORE INTO restaurant_hours (id, restaurantId, dayOfWeek, openTime, closeTime, isClosed) VALUES (?, ?, ?, ?, ?, ?)');
-            for (const h of standardHours) {
-              insert.run(h.id, targetId, h.dayOfWeek, h.openTime, h.closeTime, 0);
-            }
-          } catch (e) {}
-          return standardHours;
-        }
-        return rows.map((r: any) => ({ ...r, isClosed: Boolean(r.isClosed) }));
-      },
-      () => {
-        const memList = memHours.filter(h => h.restaurantId === targetId);
-        if (memList.length > 0) return memList;
-        return [0, 1, 2, 3, 4, 5, 6].map(day => ({
-          id: `gen-hour-${targetId}-${day}`,
-          restaurantId: targetId,
-          dayOfWeek: day,
-          openTime: '11:30',
-          closeTime: '23:00',
-          isClosed: false
-        }));
-      }
-    );
-  },
-
-  saveRestaurantHours: (restaurantId: string, hours: RestaurantHours[]) => {
-    const rest = serverDb.getRestaurantById(restaurantId);
-    const targetId = rest ? rest.id : restaurantId;
-    safeMutation(
-      () => {
-        sqlite.prepare('DELETE FROM restaurant_hours WHERE restaurantId = ?').run(targetId);
-        const insert = sqlite.prepare('INSERT INTO restaurant_hours (id, restaurantId, dayOfWeek, openTime, closeTime, isClosed) VALUES (?, ?, ?, ?, ?, ?)');
-        for (const h of hours) {
-          insert.run(h.id, targetId, h.dayOfWeek, h.openTime, h.closeTime, h.isClosed ? 1 : 0);
-        }
-      },
-      () => {
-        for (const h of hours) {
-          const idx = memHours.findIndex(x => x.id === h.id || (x.restaurantId === targetId && x.dayOfWeek === h.dayOfWeek));
-          if (idx >= 0) memHours[idx] = h;
-          else memHours.push(h);
-        }
-      }
-    );
-  },
-
-  // CLOSURES & SPECIAL HOLIDAYS
-  getRestaurantClosures: (restaurantId: string): RestaurantClosure[] => {
-    const rest = serverDb.getRestaurantById(restaurantId);
-    const targetId = rest ? rest.id : restaurantId;
-    return safeQuery(
-      () => sqlite.prepare('SELECT * FROM restaurant_closures WHERE restaurantId = ?').all(targetId) || [],
-      () => memClosures.filter(c => c.restaurantId === targetId)
-    );
-  },
-
-  getRestaurantClosure: (restaurantId: string, date: string): RestaurantClosure | null => {
-    const rest = serverDb.getRestaurantById(restaurantId);
-    const targetId = rest ? rest.id : restaurantId;
-    return safeQuery(
-      () => sqlite.prepare('SELECT * FROM restaurant_closures WHERE restaurantId = ? AND closureDate = ?').get(targetId, date) || null,
-      () => memClosures.find(c => c.restaurantId === targetId && c.closureDate === date) || null
-    );
-  },
-
-  saveRestaurantClosure: (closure: RestaurantClosure): RestaurantClosure => {
-    return safeMutation(
-      () => {
-        sqlite.prepare('INSERT OR REPLACE INTO restaurant_closures (id, restaurantId, closureDate, reason) VALUES (?, ?, ?, ?)').run(
-          closure.id, closure.restaurantId, closure.closureDate, closure.reason || null
-        );
-        return closure;
-      },
-      () => {
-        const idx = memClosures.findIndex(x => x.id === closure.id || (x.restaurantId === closure.restaurantId && x.closureDate === closure.closureDate));
-        if (idx >= 0) memClosures[idx] = closure;
-        else memClosures.push(closure);
-        return closure;
-      }
-    );
-  },
-
-  // RESERVATIONS & REAL DATABASE SLOT CAPACITY ENGINE
-  getReservations: (filter?: { restaurantId?: string; customerId?: string }): Reservation[] => {
-    return safeQuery(
-      () => {
-        let sql = 'SELECT * FROM reservations WHERE 1=1';
-        const params: any[] = [];
-        if (filter?.restaurantId) {
-          sql += ' AND restaurantId = ?';
-          params.push(filter.restaurantId);
-        }
-        if (filter?.customerId) {
-          sql += ' AND customerId = ?';
-          params.push(filter.customerId);
-        }
-        sql += ' ORDER BY reservationDate DESC, startTime DESC';
-        const rows = sqlite.prepare(sql).all(...params);
-        return rows.map(mapReservation);
-      },
-      () => {
-        let list = [...memReservations];
-        if (filter?.restaurantId) list = list.filter(r => r.restaurantId === filter.restaurantId);
-        if (filter?.customerId) list = list.filter(r => r.customerId === filter.customerId);
-        return list;
-      }
-    );
-  },
-
-  getReservationById: (id: string): Reservation | null => {
-    return safeQuery(
-      () => {
-        const row = sqlite.prepare('SELECT * FROM reservations WHERE id = ? OR bookingReference = ?').get(id, id);
-        return row ? mapReservation(row) : null;
-      },
-      () => memReservations.find(r => r.id === id || r.bookingReference === id) || null
-    );
-  },
-
-  // Check if customer already has an active/upcoming reservation at this restaurant
-  getActiveBookingForCustomer: (restaurantId: string, customerId: string, date: string): Reservation | null => {
-    return safeQuery(
-      () => {
-        const row = sqlite.prepare(`
-          SELECT * FROM reservations 
-          WHERE restaurantId = ? 
-            AND customerId = ? 
-            AND reservationDate >= ? 
-            AND status IN ('confirmed', 'pending', 'checked_in')
-          ORDER BY reservationDate ASC, startTime ASC
-          LIMIT 1
-        `).get(restaurantId, customerId, date);
-        return row ? mapReservation(row) : null;
-      },
-      () => {
-        return memReservations.find(r => 
-          r.restaurantId === restaurantId &&
-          r.customerId === customerId &&
-          r.reservationDate >= date &&
-          ['confirmed', 'pending', 'checked_in'].includes(r.status)
-        ) || null;
-      }
-    );
-  },
-
-  getSlotAvailabilityDetails: (
+  // CAPACITY & AVAILABILITY ENGINE
+  getSlotAvailabilityDetails: async (
     restaurantId: string,
     date: string,
     partySize: number
-  ): SlotAvailabilityResponse => {
-    const rest = serverDb.getRestaurantById(restaurantId);
+  ): Promise<SlotAvailabilityResponse> => {
+    const rest = await serverDb.getRestaurantById(restaurantId);
     if (!rest) {
       return {
         status: 'error',
@@ -1041,7 +579,6 @@ export const serverDb = {
       };
     }
 
-    // Normalize date format
     const cleanDate = date.includes('T') ? date.split('T')[0] : date.trim();
     const dateParts = cleanDate.split('-').map(Number);
     if (dateParts.length !== 3 || dateParts.some(isNaN)) {
@@ -1055,12 +592,11 @@ export const serverDb = {
     }
 
     const [year, month, day] = dateParts;
-    // Calculate calendar day of week using UTC midday to prevent timezone shifts across systems
     const targetDateUtc = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
     const dayOfWeek = targetDateUtc.getUTCDay();
 
-    // Check special holiday/closure
-    const closure = serverDb.getRestaurantClosure(rest.id, cleanDate);
+    // Holiday/closure check
+    const closure = await serverDb.getRestaurantClosure(rest.id, cleanDate);
     if (closure) {
       return {
         status: 'closed',
@@ -1073,49 +609,28 @@ export const serverDb = {
       };
     }
 
-    // Check opening hours for this day of week
-    const hours = serverDb.getRestaurantHours(rest.id);
+    // Opening hours check
+    const hours = await serverDb.getRestaurantHours(rest.id);
     const dayHours = hours.find(h => h.dayOfWeek === dayOfWeek);
 
-    if (!dayHours) {
-      return {
-        status: 'missing_schedule',
-        message: `Opening hours have not been configured for this restaurant on ${DAY_NAMES[dayOfWeek]}.`,
-        slots: [],
-        hours: null,
-        restaurant: { id: rest.id, name: rest.name, slug: rest.slug, timezone: rest.timezone }
-      };
-    }
-
-    if (dayHours.isClosed) {
+    if (!dayHours || dayHours.isClosed) {
       return {
         status: 'closed',
-        message: 'This restaurant is closed on the selected date.',
+        message: `This restaurant is closed on ${DAY_NAMES[dayOfWeek]}.`,
         slots: [],
-        hours: dayHours,
-        restaurant: { id: rest.id, name: rest.name, slug: rest.slug, timezone: rest.timezone }
-      };
-    }
-
-    if (!dayHours.openTime || !dayHours.closeTime) {
-      return {
-        status: 'missing_schedule',
-        message: 'Opening hours have not been configured for this restaurant.',
-        slots: [],
-        hours: dayHours,
+        hours: dayHours || null,
         restaurant: { id: rest.id, name: rest.name, slug: rest.slug, timezone: rest.timezone }
       };
     }
 
     const openMinutes = timeToMinutes(dayHours.openTime);
     let closeMinutes = timeToMinutes(dayHours.closeTime);
-    // Overnight operating hours support (e.g. 17:00 to 02:00)
     if (closeMinutes <= openMinutes) {
-      closeMinutes += 24 * 60;
+      closeMinutes += 24 * 60; // overnight hours support
     }
 
     const slotDuration = rest.slotDurationMinutes || 90;
-    const intervalMinutes = 30; // standard 30 min intervals
+    const intervalMinutes = 30;
 
     const slotTimes: string[] = [];
     for (let m = openMinutes; m + slotDuration <= closeMinutes; m += intervalMinutes) {
@@ -1125,22 +640,23 @@ export const serverDb = {
     if (slotTimes.length === 0) {
       return {
         status: 'no_slots',
-        message: 'No reservation times are available for this date. Please try another date.',
+        message: 'No reservation times are available for this date.',
         slots: [],
         hours: dayHours,
         restaurant: { id: rest.id, name: rest.name, slug: rest.slug, timezone: rest.timezone }
       };
     }
 
-    const tables = serverDb.getTables(rest.id).filter(t => t.isActive);
+    const tables = (await serverDb.getTables(rest.id)).filter(t => t.isActive);
     const totalCapacity = rest.totalSeatingCapacity || 40;
 
     // Fetch active reservations for this calendar date
-    const dateReservations = serverDb.getReservations({ restaurantId: rest.id }).filter(
+    const allReservations = await serverDb.getReservations({ restaurantId: rest.id });
+    const dateReservations = allReservations.filter(
       r => r.reservationDate === cleanDate && r.status !== 'cancelled' && r.status !== 'no_show'
     );
 
-    // Current local time at restaurant timezone
+    // Filter past times if date is today
     const restaurantTimezone = rest.timezone || 'America/New_York';
     let isTodayAtRestaurant = false;
     let currentRestaurantMinutes = -1;
@@ -1148,261 +664,236 @@ export const serverDb = {
       const nowFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: restaurantTimezone });
       const todayInTz = nowFormatter.format(new Date());
       isTodayAtRestaurant = (cleanDate === todayInTz);
-
-      const timeFormatter = new Intl.DateTimeFormat('en-GB', {
-        timeZone: restaurantTimezone,
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      });
-      const timeParts = timeFormatter.format(new Date()).split(':').map(Number);
-      if (timeParts.length === 2 && !isNaN(timeParts[0]) && !isNaN(timeParts[1])) {
-        currentRestaurantMinutes = timeParts[0] * 60 + timeParts[1];
+      if (isTodayAtRestaurant) {
+        const timeFormatter = new Intl.DateTimeFormat('en-US', {
+          timeZone: restaurantTimezone,
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        const [currH, currM] = timeFormatter.format(new Date()).split(':').map(Number);
+        currentRestaurantMinutes = currH * 60 + currM;
       }
-    } catch (e) {
-      const now = new Date();
-      const localDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-      isTodayAtRestaurant = (cleanDate === localDateStr);
-      currentRestaurantMinutes = now.getHours() * 60 + now.getMinutes();
+    } catch {
+      // Default to UTC comparison
     }
 
-    const minLeadTimeBuffer = rest.bufferTimeMinutes || 15;
-    const results: TimeSlotAvailability[] = [];
+    const slots: TimeSlotAvailability[] = [];
 
     for (const time of slotTimes) {
       const slotStart = timeToMinutes(time);
       const slotEnd = slotStart + slotDuration;
 
-      // Check if slot has already passed for today
-      if (isTodayAtRestaurant && currentRestaurantMinutes >= 0) {
-        if (slotStart < currentRestaurantMinutes + minLeadTimeBuffer) {
-          results.push({
-            time,
-            formattedTime: formatTime12h(time),
-            isAvailable: false,
-            reason: 'This reservation time has already passed for today.',
-            remainingSeats: 0,
-            maxPartyAllowed: 0
-          });
-          continue;
-        }
+      // 1. Check if slot has already passed today
+      if (isTodayAtRestaurant && currentRestaurantMinutes > -1 && slotStart <= currentRestaurantMinutes + 30) {
+        slots.push({
+          time,
+          formattedTime: formatTime12h(time),
+          isAvailable: false,
+          reason: 'Time slot has already passed',
+          remainingSeats: 0,
+          maxPartyAllowed: 0
+        });
+        continue;
       }
 
-      const overlapping = dateReservations.filter(res => {
+      // 2. Overlapping active reservations
+      const overlappingReservations = dateReservations.filter(res => {
         const resStart = timeToMinutes(res.startTime);
         const resEnd = timeToMinutes(res.endTime);
         return slotStart < resEnd && slotEnd > resStart;
       });
 
-      const currentlyBookedGuests = overlapping.reduce((sum, r) => sum + r.partySize, 0);
-      const remainingTotalSeats = Math.max(0, totalCapacity - currentlyBookedGuests);
+      // Total seats booked during this window
+      const bookedSeats = overlappingReservations.reduce((sum, res) => sum + (res.partySize || 0), 0);
+      const remainingSeats = Math.max(0, totalCapacity - bookedSeats);
 
-      let isAvailable = true;
-      let reason: string | undefined;
-      let suggestedTableId: string | undefined;
+      // Check mode
+      if (rest.seatingManagementMode === 'individual_tables' && tables.length > 0) {
+        const reservedTableIds = new Set(overlappingReservations.map(r => r.assignedTableId).filter(Boolean));
+        const availableTables = tables.filter(t => !reservedTableIds.has(t.id));
 
-      if (partySize > remainingTotalSeats) {
-        isAvailable = false;
-        reason = `Insufficient seating capacity. Only ${remainingTotalSeats} seats remain for this slot.`;
-      } else if (partySize < rest.minPartySize) {
-        isAvailable = false;
-        reason = `Party size below restaurant minimum of ${rest.minPartySize}.`;
-      } else if (partySize > rest.maxPartySize) {
-        isAvailable = false;
-        reason = `Party size exceeds restaurant maximum of ${rest.maxPartySize}.`;
-      } else if (rest.seatingManagementMode === 'individual_tables') {
-        const occupiedTableIds = new Set(overlapping.map(b => b.assignedTableId).filter(Boolean));
-        const candidateTables = tables
-          .filter(t => !occupiedTableIds.has(t.id) && t.capacity >= partySize)
-          .sort((a, b) => a.capacity - b.capacity);
+        const fittingTable = availableTables.find(t => t.capacity >= partySize);
+        const maxCapacityAvailable = availableTables.length > 0 ? Math.max(...availableTables.map(t => t.capacity)) : 0;
 
-        if (tables.length > 0 && candidateTables.length === 0) {
-          isAvailable = false;
-          reason = `No single available table found with at least ${partySize} seats for this slot.`;
-        } else if (candidateTables.length > 0) {
-          suggestedTableId = candidateTables[0].id;
+        if (partySize > totalCapacity) {
+          slots.push({
+            time,
+            formattedTime: formatTime12h(time),
+            isAvailable: false,
+            reason: `Requested party of ${partySize} exceeds restaurant total capacity (${totalCapacity} seats).`,
+            remainingSeats: 0,
+            maxPartyAllowed: 0
+          });
+        } else if (!fittingTable) {
+          slots.push({
+            time,
+            formattedTime: formatTime12h(time),
+            isAvailable: false,
+            reason: availableTables.length === 0
+              ? 'All dining tables fully booked for this slot'
+              : `Largest available table accommodates ${maxCapacityAvailable} guests`,
+            remainingSeats,
+            maxPartyAllowed: maxCapacityAvailable
+          });
+        } else {
+          slots.push({
+            time,
+            formattedTime: formatTime12h(time),
+            isAvailable: true,
+            remainingSeats,
+            maxPartyAllowed: maxCapacityAvailable,
+            suggestedTableId: fittingTable.id
+          });
+        }
+      } else {
+        // Total capacity mode
+        if (partySize > remainingSeats) {
+          slots.push({
+            time,
+            formattedTime: formatTime12h(time),
+            isAvailable: false,
+            reason: remainingSeats <= 0 ? 'Fully booked' : `Only ${remainingSeats} seats remaining`,
+            remainingSeats,
+            maxPartyAllowed: remainingSeats
+          });
+        } else {
+          slots.push({
+            time,
+            formattedTime: formatTime12h(time),
+            isAvailable: true,
+            remainingSeats,
+            maxPartyAllowed: remainingSeats
+          });
         }
       }
-
-      results.push({
-        time,
-        formattedTime: formatTime12h(time),
-        isAvailable,
-        reason,
-        remainingSeats: remainingTotalSeats,
-        maxPartyAllowed: Math.min(remainingTotalSeats, rest.maxPartySize),
-        suggestedTableId
-      });
     }
 
-    const anyAvailable = results.some(s => s.isAvailable);
-
     return {
-      status: anyAvailable ? 'available' : 'no_slots',
-      message: anyAvailable
-        ? 'Reservation slots available.'
-        : 'No reservation times are available for this date. Please try another date.',
-      slots: results,
+      status: 'available',
+      message: `Found ${slots.filter(s => s.isAvailable).length} available time slots.`,
+      slots,
       hours: dayHours,
       restaurant: { id: rest.id, name: rest.name, slug: rest.slug, timezone: rest.timezone }
     };
   },
 
-  checkSlotAvailability: (restaurantId: string, date: string, partySize: number): TimeSlotAvailability[] => {
-    const details = serverDb.getSlotAvailabilityDetails(restaurantId, date, partySize);
+  checkSlotAvailability: async (restaurantId: string, date: string, partySize: number): Promise<TimeSlotAvailability[]> => {
+    const details = await serverDb.getSlotAvailabilityDetails(restaurantId, date, partySize);
     return details.slots;
   },
 
-  // Real-time Cinema-Style Table & Seat Availability Engine
-  getTableSeatsAvailability: (
-    restaurantId: string, 
-    date: string, 
-    time: string, 
+  getTableSeatsAvailability: async (
+    restaurantId: string,
+    date: string,
+    time: string = '19:00',
     partySize: number = 2
-  ): TableSeatStatus[] => {
-    const rest = serverDb.getRestaurantById(restaurantId);
-    if (!rest) return [];
+  ): Promise<TableSeatStatus[]> => {
+    const rest = await serverDb.getRestaurantById(restaurantId);
+    const slotDuration = rest?.slotDurationMinutes || 90;
+    const startMins = timeToMinutes(time);
+    const endMins = startMins + slotDuration;
 
-    const tables = serverDb.getTables(restaurantId);
-    const slotDuration = rest.slotDurationMinutes || 90;
-    const reqStart = timeToMinutes(time);
-    const reqEnd = reqStart + slotDuration;
-
-    // Active reservations for this restaurant on this date
-    const dateReservations = serverDb.getReservations({ restaurantId }).filter(
+    const tables = await serverDb.getTables(restaurantId);
+    const allReservations = await serverDb.getReservations({ restaurantId });
+    const dateReservations = allReservations.filter(
       r => r.reservationDate === date && r.status !== 'cancelled' && r.status !== 'no_show'
     );
 
-    // Filter to overlapping reservations
-    const overlapping = dateReservations.filter(res => {
-      const resStart = timeToMinutes(res.startTime);
-      const resEnd = timeToMinutes(res.endTime);
-      return reqStart < resEnd && reqEnd > resStart;
-    });
-
-    const bookedTableMap = new Map<string, { bookingRef: string; seats?: number[] }>();
-    for (const res of overlapping) {
-      if (res.assignedTableId) {
-        bookedTableMap.set(res.assignedTableId, {
-          bookingRef: res.bookingReference,
-          seats: res.assignedSeatNumbers
-        });
-      }
-    }
-
     const now = Date.now();
-    // Prune expired seat holds
-    for (const [key, hold] of Array.from(seatHolds.entries())) {
-      if (hold.expiresAt <= now) {
-        seatHolds.delete(key);
-      }
-    }
 
-    return tables.map(tab => {
-      const bookingInfo = bookedTableMap.get(tab.id);
-      const isBooked = Boolean(bookingInfo);
+    return tables.map(table => {
+      const overlappingRes = dateReservations.find(res => {
+        if (res.assignedTableId !== table.id) return false;
+        const resStart = timeToMinutes(res.startTime);
+        const resEnd = timeToMinutes(res.endTime);
+        return startMins < resEnd && endMins > resStart;
+      });
 
-      // Check if table or seats are currently held
-      const holdKeyPrefix = `${restaurantId}_${date}_${time}_${tab.id}`;
-      const activeHold = seatHolds.get(holdKeyPrefix);
-      const isHeld = Boolean(activeHold && activeHold.expiresAt > now);
+      const holdKey = `${restaurantId}_${date}_${time}_${table.id}`;
+      const activeHold = seatHolds.get(holdKey);
+      const isHeld = activeHold ? activeHold.expiresAt > now : false;
 
       let status: TableSeatStatus['status'] = 'available';
-      if (!tab.isActive) {
-        status = 'unavailable';
-      } else if (isBooked) {
-        status = 'booked';
-      } else if (isHeld) {
-        status = 'held';
-      }
+      if (!table.isActive) status = 'unavailable';
+      else if (overlappingRes) status = 'booked';
+      else if (isHeld) status = 'held';
 
-      // Generate individual seats (like cinema seats 1..capacity)
-      const bookedSeatsSet = new Set(bookingInfo?.seats || []);
-      const seats = Array.from({ length: tab.capacity }).map((_, idx) => {
+      const seats = Array.from({ length: table.capacity }, (_, idx) => {
         const seatNumber = idx + 1;
-        const seatId = `${tab.id}-s${seatNumber}`;
-        const seatHold = seatHolds.get(`${holdKeyPrefix}_s${seatNumber}`);
+        const seatHoldKey = `${holdKey}_s${seatNumber}`;
+        const seatHeld = seatHolds.get(seatHoldKey);
+        const isSeatHeld = seatHeld ? seatHeld.expiresAt > now : false;
 
         let seatStatus: TableSeatStatus['status'] = status;
-        if (status === 'available') {
-          if (bookedSeatsSet.has(seatNumber)) {
-            seatStatus = 'booked';
-          } else if (seatHold && seatHold.expiresAt > now) {
-            seatStatus = 'held';
-          }
+        if (overlappingRes && overlappingRes.assignedSeatNumbers) {
+          seatStatus = overlappingRes.assignedSeatNumbers.includes(seatNumber) ? 'booked' : 'available';
+        } else if (isSeatHeld) {
+          seatStatus = 'held';
         }
 
         return {
           seatNumber,
-          seatId,
+          seatId: `${table.id}-s${seatNumber}`,
           status: seatStatus
         };
       });
 
       return {
-        tableId: tab.id,
-        tableNumber: tab.tableNumber,
-        capacity: tab.capacity,
-        shape: tab.shape || 'rectangle',
-        locationArea: tab.locationArea,
-        isActive: tab.isActive,
-        posX: tab.posX !== undefined ? tab.posX : 50,
-        posY: tab.posY !== undefined ? tab.posY : 50,
+        tableId: table.id,
+        tableNumber: table.tableNumber,
+        capacity: table.capacity,
+        shape: table.shape || 'rectangle',
+        locationArea: table.locationArea,
+        isActive: table.isActive,
+        posX: table.posX ?? 50,
+        posY: table.posY ?? 50,
         status,
-        heldExpiresAt: activeHold?.expiresAt,
-        bookedByReference: bookingInfo?.bookingRef,
+        heldExpiresAt: isHeld ? activeHold?.expiresAt : undefined,
+        bookedByReference: overlappingRes?.bookingReference,
         seats
       };
     });
   },
 
-  // Temporary Seat Hold mechanism (e.g. 5 minutes cinema-style hold)
   holdSeats: (data: {
     restaurantId: string;
     date: string;
     time: string;
     tableId: string;
     seatNumbers?: number[];
-    holdToken: string;
-    durationSeconds?: number;
-  }): { success: boolean; expiresAt?: number; error?: string } => {
-    const { restaurantId, date, time, tableId, seatNumbers, holdToken, durationSeconds = 300 } = data;
-    const availability = serverDb.getTableSeatsAvailability(restaurantId, date, time);
-    const targetTable = availability.find(t => t.tableId === tableId);
+    holdDurationMinutes?: number;
+  }): { success: boolean; holdToken?: string; expiresAt?: number; error?: string } => {
+    const durationMs = (data.holdDurationMinutes || 10) * 60 * 1000;
+    const expiresAt = Date.now() + durationMs;
+    const holdToken = `hold_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
-    if (!targetTable || !targetTable.isActive) {
-      return { success: false, error: 'Table is not available for seating.' };
+    const holdKey = `${data.restaurantId}_${data.date}_${data.time}_${data.tableId}`;
+    const existing = seatHolds.get(holdKey);
+    if (existing && existing.expiresAt > Date.now()) {
+      return { success: false, error: 'Table is currently held by another guest. Please select another table.' };
     }
 
-    if (targetTable.status === 'booked') {
-      return { success: false, error: `Table ${targetTable.tableNumber} is already booked for this time.` };
-    }
-
-    const expiresAt = Date.now() + (durationSeconds * 1000);
-    const holdKeyPrefix = `${restaurantId}_${date}_${time}_${tableId}`;
-    seatHolds.set(holdKeyPrefix, { token: holdToken, expiresAt });
-
-    if (seatNumbers && seatNumbers.length > 0) {
-      for (const sNum of seatNumbers) {
-        seatHolds.set(`${holdKeyPrefix}_s${sNum}`, { token: holdToken, expiresAt });
+    seatHolds.set(holdKey, { token: holdToken, expiresAt });
+    if (data.seatNumbers) {
+      for (const s of data.seatNumbers) {
+        seatHolds.set(`${holdKey}_s${s}`, { token: holdToken, expiresAt });
       }
     }
 
-    return { success: true, expiresAt };
+    return { success: true, holdToken, expiresAt };
   },
 
-  releaseHold: (restaurantId: string, date: string, time: string, tableId: string, holdToken?: string) => {
-    const holdKeyPrefix = `${restaurantId}_${date}_${time}_${tableId}`;
-    const existing = seatHolds.get(holdKeyPrefix);
-    if (!holdToken || (existing && existing.token === holdToken)) {
-      seatHolds.delete(holdKeyPrefix);
-      for (let s = 1; s <= 20; s++) {
-        seatHolds.delete(`${holdKeyPrefix}_s${s}`);
-      }
+  releaseHold: (restaurantId: string, date: string, time: string, tableId: string, holdToken?: string): void => {
+    const holdKey = `${restaurantId}_${date}_${time}_${tableId}`;
+    const existing = seatHolds.get(holdKey);
+    if (existing && (!holdToken || existing.token === holdToken)) {
+      seatHolds.delete(holdKey);
     }
   },
 
-  createReservation: (data: {
+  // BOOKING CREATION WITH ATOMIC OVERBOOKING & PRICING VERIFICATION
+  createReservation: async (data: {
     restaurantId: string;
     customerId: string;
     customerName: string;
@@ -1416,8 +907,8 @@ export const serverDb = {
     holdToken?: string;
     specialRequests?: string;
     items?: { menuItemId: string; quantity: number }[];
-  }): { success: boolean; reservation?: Reservation; error?: string } => {
-    const restaurant = serverDb.getRestaurantById(data.restaurantId);
+  }): Promise<{ success: boolean; reservation?: Reservation; error?: string }> => {
+    const restaurant = await serverDb.getRestaurantById(data.restaurantId);
     if (!restaurant) {
       return { success: false, error: 'Restaurant not found.' };
     }
@@ -1442,7 +933,6 @@ export const serverDb = {
     data.reservationDate = reservationDate;
     data.customerId = customerId;
 
-    // Server-side validation of party size
     if (data.partySize < (restaurant.minPartySize || 1)) {
       return { success: false, error: `Party size must be at least ${restaurant.minPartySize}.` };
     }
@@ -1450,19 +940,20 @@ export const serverDb = {
       return { success: false, error: `Party size cannot exceed ${restaurant.maxPartySize}.` };
     }
 
-    // Duplicate check: prevent duplicate active reservation for same customer + restaurant + date + time
-    const existingDuplicate = serverDb.getReservations({ restaurantId: restaurant.id, customerId: data.customerId }).find(
+    // Duplicate booking check for same customer + restaurant + date + time
+    const existingReservations = await serverDb.getReservations({ restaurantId: restaurant.id, customerId: data.customerId });
+    const duplicate = existingReservations.find(
       r => r.reservationDate === data.reservationDate && r.startTime === data.startTime && ['pending', 'confirmed'].includes(r.status)
     );
-    if (existingDuplicate) {
+    if (duplicate) {
       return {
         success: false,
-        error: `You already have an active booking (${existingDuplicate.bookingReference}) for this restaurant at ${data.startTime}.`
+        error: `You already have an active booking (${duplicate.bookingReference}) for this restaurant at ${data.startTime}.`
       };
     }
 
-    // Capacity & availability verification against real disk database
-    const availability = serverDb.getSlotAvailabilityDetails(restaurant.id, data.reservationDate, data.partySize);
+    // Verify slot capacity against real database records
+    const availability = await serverDb.getSlotAvailabilityDetails(restaurant.id, data.reservationDate, data.partySize);
     if (availability.status !== 'available') {
       return {
         success: false,
@@ -1472,9 +963,9 @@ export const serverDb = {
 
     const targetSlot = availability.slots.find(s => s.time === data.startTime);
     if (!targetSlot || !targetSlot.isAvailable) {
-      return { 
-        success: false, 
-        error: targetSlot?.reason || 'Selected time slot is no longer available. Please choose another time.' 
+      return {
+        success: false,
+        error: targetSlot?.reason || 'Selected time slot is no longer available. Please choose another time.'
       };
     }
 
@@ -1483,20 +974,21 @@ export const serverDb = {
     const endMins = startMins + slotDuration;
     const endTime = minutesToTime(endMins);
 
-    // Validate table selection & double booking prevention
+    // Validate table assignment and double-booking
     let assignedTableId = data.selectedTableId || targetSlot.suggestedTableId;
     let assignedTableName: string | undefined;
     let assignedSeatNumbers: number[] | undefined = data.selectedSeats;
 
     if (assignedTableId) {
-      const tables = serverDb.getTables(data.restaurantId);
+      const tables = await serverDb.getTables(data.restaurantId);
       const tab = tables.find(t => t.id === assignedTableId);
       if (!tab || !tab.isActive) {
         return { success: false, error: 'The selected table is currently unavailable or inactive.' };
       }
 
-      // Check if this table has an overlapping reservation
-      const overlappingRes = serverDb.getReservations({ restaurantId: data.restaurantId }).find(res => {
+      // Check overlapping table reservation
+      const restReservations = await serverDb.getReservations({ restaurantId: data.restaurantId });
+      const overlappingRes = restReservations.find(res => {
         if (res.reservationDate !== data.reservationDate || res.assignedTableId !== assignedTableId) return false;
         if (res.status === 'cancelled' || res.status === 'no_show') return false;
         const resStart = timeToMinutes(res.startTime);
@@ -1505,29 +997,32 @@ export const serverDb = {
       });
 
       if (overlappingRes) {
-        return { 
-          success: false, 
-          error: `Table ${tab.tableNumber} was just reserved by another guest for this time window. Please select another table.` 
+        return {
+          success: false,
+          error: `Table ${tab.tableNumber} was just reserved by another guest for this time window. Please select another table.`
         };
       }
 
       assignedTableName = `${tab.tableNumber} (Cap: ${tab.capacity})`;
-
-      // If customer did not specify seats, default to [1..partySize]
       if (!assignedSeatNumbers || assignedSeatNumbers.length === 0) {
         assignedSeatNumbers = Array.from({ length: Math.min(data.partySize, tab.capacity) }, (_, i) => i + 1);
       }
     }
 
-    // Recalculate menu items server-side
-    const menuItems = serverDb.getMenuItems(data.restaurantId);
+    // Server-side food pre-order calculation
+    const menuItems = await serverDb.getMenuItems(data.restaurantId);
     const preOrderItems: Reservation['items'] = [];
     let subtotal = 0;
 
     if (data.items && data.items.length > 0) {
       for (const reqItem of data.items) {
         const found = menuItems.find(m => m.id === reqItem.menuItemId);
-        if (!found) continue;
+        if (!found) {
+          return {
+            success: false,
+            error: `Selected dish (${reqItem.menuItemId}) is not available on this restaurant's menu.`
+          };
+        }
         if (!found.isAvailable) {
           return {
             success: false,
@@ -1582,34 +1077,18 @@ export const serverDb = {
       updatedAt: nowIso
     };
 
-    safeMutation(
-      () => {
-        sqlite.prepare(`
-          INSERT INTO reservations (
-            id, bookingReference, restaurantId, restaurantName, restaurantSlug, customerId,
-            customerName, customerEmail, customerPhone, partySize, reservationDate, startTime,
-            endTime, status, assignedTableId, assignedTableName, assignedSeatNumbers, specialRequests, orderSubtotal,
-            orderTax, estimatedTotal, items, createdAt, updatedAt
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          newReservation.id, newReservation.bookingReference, newReservation.restaurantId,
-          newReservation.restaurantName || null, newReservation.restaurantSlug || null,
-          newReservation.customerId, newReservation.customerName, newReservation.customerEmail,
-          newReservation.customerPhone, newReservation.partySize, newReservation.reservationDate,
-          newReservation.startTime, newReservation.endTime, newReservation.status,
-          newReservation.assignedTableId || null, newReservation.assignedTableName || null,
-          assignedSeatNumbers ? JSON.stringify(assignedSeatNumbers) : null,
-          newReservation.specialRequests || null, newReservation.orderSubtotal, newReservation.orderTax,
-          newReservation.estimatedTotal, JSON.stringify(newReservation.items),
-          newReservation.createdAt, newReservation.updatedAt
-        );
-      },
-      () => {
-        memReservations.unshift(newReservation);
-      }
-    );
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      await db.collection<any>(COLLECTIONS.RESERVATIONS).insertOne({
+        ...newReservation,
+        _id: newReservation.id
+      });
+    } else {
+      memReservations.unshift(newReservation);
+    }
 
-    // Release any temporary hold now that booking is confirmed
+    // Release temporary hold if applicable
     if (assignedTableId) {
       serverDb.releaseHold(data.restaurantId, data.reservationDate, data.startTime, assignedTableId, data.holdToken);
     }
@@ -1617,436 +1096,349 @@ export const serverDb = {
     return { success: true, reservation: newReservation };
   },
 
-  updateReservationStatus: (id: string, status: ReservationStatus, cancellationReason?: string): Reservation | null => {
-    const existing = serverDb.getReservationById(id);
-    if (!existing) return null;
-
-    const cancelledAt = status === 'cancelled' ? new Date().toISOString() : existing.cancelledAt;
-    const reason = status === 'cancelled' ? (cancellationReason || 'Cancelled by guest or host') : existing.cancellationReason;
-
-    return safeMutation(
-      () => {
-        sqlite.prepare(`
-          UPDATE reservations 
-          SET status = ?, cancellationReason = ?, cancelledAt = ?, updatedAt = ?
-          WHERE id = ?
-        `).run(status, reason || null, cancelledAt || null, new Date().toISOString(), id);
-        return serverDb.getReservationById(id);
-      },
-      () => {
-        const found = memReservations.find(r => r.id === id || r.bookingReference === id);
-        if (found) {
-          found.status = status;
-          found.cancellationReason = reason;
-          found.cancelledAt = cancelledAt;
-          found.updatedAt = new Date().toISOString();
-          return found;
-        }
-        return null;
-      }
-    );
-  },
-
-  assignReservationTable: (reservationId: string, tableId: string): Reservation | null => {
-    const existing = serverDb.getReservationById(reservationId);
-    if (!existing) return null;
-
-    const tables = serverDb.getTables(existing.restaurantId);
-    const table = tables.find(t => t.id === tableId);
-    const tableName = table ? `${table.tableNumber} (Cap: ${table.capacity})` : null;
-
-    return safeMutation(
-      () => {
-        sqlite.prepare(`
-          UPDATE reservations SET assignedTableId = ?, assignedTableName = ?, updatedAt = ? WHERE id = ?
-        `).run(tableId, tableName, new Date().toISOString(), reservationId);
-        return serverDb.getReservationById(reservationId);
-      },
-      () => {
-        const found = memReservations.find(r => r.id === reservationId || r.bookingReference === reservationId);
-        if (found) {
-          found.assignedTableId = tableId;
-          found.assignedTableName = tableName || undefined;
-          found.updatedAt = new Date().toISOString();
-          return found;
-        }
-        return null;
-      }
-    );
-  },
-
-  // USERS
-  getUsers: (): UserProfile[] => {
-    syncEnvAdmin();
-    return safeQuery(
-      () => sqlite.prepare('SELECT * FROM users').all() as UserProfile[],
-      () => memUsers
-    );
-  },
-
-  getUserById: (id: string): UserProfile | null => {
-    syncEnvAdmin();
-    return safeQuery(
-      () => sqlite.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserProfile | null,
-      () => memUsers.find(u => u.id === id) || null
-    );
-  },
-
-  getUserByEmail: (email: string): UserProfile | null => {
-    syncEnvAdmin();
-    return safeQuery(
-      () => sqlite.prepare('SELECT * FROM users WHERE LOWER(email) = LOWER(?)').get(email) as UserProfile | null,
-      () => memUsers.find(u => u.email.toLowerCase() === email.toLowerCase()) || null
-    );
-  },
-
-  saveUser: (u: UserProfile): UserProfile => {
-    return safeMutation(
-      () => {
-        const existing = sqlite.prepare('SELECT id FROM users WHERE id = ?').get(u.id);
-        if (existing) {
-          sqlite.prepare(`
-            UPDATE users SET email = ?, fullName = ?, phone = ?, role = ?, password = ?, ownedRestaurantId = ?
-            WHERE id = ?
-          `).run(u.email, u.fullName, u.phone || null, u.role, u.password || null, u.ownedRestaurantId || null, u.id);
-        } else {
-          sqlite.prepare(`
-            INSERT INTO users (id, email, fullName, phone, role, password, ownedRestaurantId, createdAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(u.id, u.email, u.fullName, u.phone || null, u.role, u.password || null, u.ownedRestaurantId || null, u.createdAt);
-        }
-        return u;
-      },
-      () => {
-        const idx = memUsers.findIndex(x => x.id === u.id);
-        if (idx >= 0) memUsers[idx] = u;
-        else memUsers.push(u);
-        return u;
-      }
-    );
-  },
-
-  // ADMIN OPERATIONS
-  hasAnyAdmin: (): boolean => {
-    if (process.env.ADMIN_INITIAL_EMAIL && process.env.ADMIN_INITIAL_PASSWORD) {
-      return true;
-    }
-    syncEnvAdmin();
-    return safeQuery(
-      () => {
-        const row = sqlite.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").get() as { count: number };
-        return (row?.count || 0) > 0;
-      },
-      () => memUsers.some(u => u.role === 'admin')
-    );
-  },
-
-  getAdminStats: () => {
-    return safeQuery(
-      () => {
-        const rows = sqlite.prepare("SELECT status, COUNT(*) as cnt FROM restaurants GROUP BY status").all() as { status: string, cnt: number }[];
-        const counts: Record<string, number> = {
-          total: 0,
-          pending_approval: 0,
-          published: 0,
-          rejected: 0,
-          suspended: 0,
-          draft: 0
-        };
-        let total = 0;
-        for (const r of rows) {
-          counts[r.status] = r.cnt;
-          total += r.cnt;
-        }
-        counts.total = total;
-
-        const resCountRow = sqlite.prepare("SELECT COUNT(*) as count FROM reservations").get() as { count: number };
-        const custCountRow = sqlite.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'customer'").get() as { count: number };
-
-        return {
-          totalRestaurants: total,
-          pendingApprovals: counts.pending_approval || 0,
-          approvedRestaurants: counts.published || 0,
-          rejectedRegistrations: counts.rejected || 0,
-          suspendedRestaurants: counts.suspended || 0,
-          totalReservations: resCountRow?.count || 0,
-          totalCustomers: custCountRow?.count || 0
-        };
-      },
-      () => {
-        const pending = memRestaurants.filter(r => r.status === 'pending_approval').length;
-        const approved = memRestaurants.filter(r => r.status === 'published').length;
-        const rejected = memRestaurants.filter(r => r.status === 'rejected').length;
-        const suspended = memRestaurants.filter(r => r.status === 'suspended').length;
-        return {
-          totalRestaurants: memRestaurants.length,
-          pendingApprovals: pending,
-          approvedRestaurants: approved,
-          rejectedRegistrations: rejected,
-          suspendedRestaurants: suspended,
-          totalReservations: memReservations.length,
-          totalCustomers: memUsers.filter(u => u.role === 'customer').length
-        };
-      }
-    );
-  },
-
-  updateRestaurantApprovalStatus: (
-    restaurantId: string, 
-    status: RestaurantStatus, 
-    details?: {
-      rejectionReason?: string;
-      suspendedReason?: string;
-      adminId?: string;
-    }
-  ): Restaurant | null => {
-    const existing = serverDb.getRestaurantById(restaurantId);
-    if (!existing) return null;
-
-    const now = new Date().toISOString();
-    const updated: Restaurant = {
-      ...existing,
+  updateReservationStatus: async (
+    id: string,
+    status: ReservationStatus,
+    cancellationReason?: string
+  ): Promise<Reservation | null> => {
+    const nowIso = new Date().toISOString();
+    const updateFields: any = {
       status,
-      reviewedByAdminId: details?.adminId || existing.reviewedByAdminId,
-      reviewedAt: now,
-      rejectionReason: status === 'rejected' ? details?.rejectionReason : (status === 'published' ? undefined : existing.rejectionReason),
-      suspendedReason: status === 'suspended' ? details?.suspendedReason : (status === 'published' ? undefined : existing.suspendedReason),
-      suspendedAt: status === 'suspended' ? now : (status === 'published' ? undefined : existing.suspendedAt)
+      updatedAt: nowIso
+    };
+    if (status === 'cancelled') {
+      updateFields.cancelledAt = nowIso;
+      if (cancellationReason) updateFields.cancellationReason = cancellationReason;
+    }
+
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      const res = await db.collection<Reservation>(COLLECTIONS.RESERVATIONS).findOneAndUpdate(
+        { $or: [{ id }, { bookingReference: id }] },
+        { $set: updateFields },
+        { returnDocument: 'after' }
+      );
+      return cleanDoc<Reservation>(res);
+    }
+
+    const idx = memReservations.findIndex(r => r.id === id || r.bookingReference === id);
+    if (idx >= 0) {
+      memReservations[idx] = {
+        ...memReservations[idx],
+        ...updateFields
+      };
+      return memReservations[idx];
+    }
+    return null;
+  },
+
+  assignReservationTable: async (reservationId: string, tableId: string): Promise<Reservation | null> => {
+    const existing = await serverDb.getReservationById(reservationId);
+    if (!existing) return null;
+
+    const tables = await serverDb.getTables(existing.restaurantId);
+    const table = tables.find(t => t.id === tableId);
+    const assignedTableName = table ? `${table.tableNumber} (Cap: ${table.capacity})` : undefined;
+
+    const updateFields = {
+      assignedTableId: tableId,
+      assignedTableName,
+      updatedAt: new Date().toISOString()
     };
 
-    return serverDb.saveRestaurant(updated);
+    if (isMongoConfigured()) {
+      const db = await getDb();
+      const res = await db.collection<Reservation>(COLLECTIONS.RESERVATIONS).findOneAndUpdate(
+        { id: existing.id },
+        { $set: updateFields },
+        { returnDocument: 'after' }
+      );
+      return cleanDoc<Reservation>(res);
+    }
+
+    const idx = memReservations.findIndex(r => r.id === existing.id);
+    if (idx >= 0) {
+      memReservations[idx] = { ...memReservations[idx], ...updateFields };
+      return memReservations[idx];
+    }
+    return null;
   },
 
-  getAdminRestaurants: (filter?: { status?: string; search?: string }) => {
-    return safeQuery(
-      () => {
-        let sql = `
-          SELECT r.*, u.fullName as ownerName, u.email as ownerEmail, u.phone as ownerPhone,
-          (SELECT COUNT(*) FROM tables t WHERE t.restaurantId = r.id) as tableCount
-          FROM restaurants r
-          LEFT JOIN users u ON r.ownerId = u.id
-          WHERE 1=1
-        `;
-        const params: any[] = [];
-        if (filter?.status && filter.status !== 'all') {
-          sql += ' AND r.status = ?';
-          params.push(filter.status);
-        }
-        if (filter?.search) {
-          sql += ' AND (r.name LIKE ? OR r.city LIKE ? OR u.fullName LIKE ? OR u.email LIKE ?)';
-          const term = `%${filter.search}%`;
-          params.push(term, term, term, term);
-        }
-        sql += ' ORDER BY r.createdAt DESC';
-        const rows = sqlite.prepare(sql).all(...params);
-        return rows.map((row: any) => ({
-          ...mapRestaurant(row),
-          tableCount: row.tableCount || 0,
-          owner: row.ownerName ? {
-            id: row.ownerId,
-            fullName: row.ownerName,
-            email: row.ownerEmail,
-            phone: row.ownerPhone,
-            role: 'restaurant_owner' as const,
-            createdAt: row.createdAt
-          } : undefined
-        }));
-      },
-      () => {
-        let list = memRestaurants.map(r => {
-          const owner = memUsers.find(u => u.id === r.ownerId);
-          const tCount = memTables.filter(t => t.restaurantId === r.id).length;
-          return {
-            ...r,
-            tableCount: tCount,
-            owner
-          };
-        });
-        if (filter?.status && filter.status !== 'all') {
-          list = list.filter(r => r.status === filter.status);
-        }
-        if (filter?.search) {
-          const s = filter.search.toLowerCase();
-          list = list.filter(r => 
-            r.name.toLowerCase().includes(s) ||
-            r.city.toLowerCase().includes(s) ||
-            r.owner?.fullName?.toLowerCase().includes(s) ||
-            r.owner?.email?.toLowerCase().includes(s)
-          );
-        }
-        return list;
-      }
-    );
+  // USERS & AUTHENTICATION
+  getUsers: async (): Promise<UserProfile[]> => {
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      const list = await db.collection<UserProfile>(COLLECTIONS.USERS).find({}).toArray();
+      return list.map(cleanDoc<UserProfile>);
+    }
+    return [...memUsers];
   },
 
-  // REVIEWS & RATINGS SYSTEM
-  recalculateRestaurantRating: (restaurantId: string): { rating: number; reviewCount: number } => {
-    return safeMutation(
-      () => {
-        const stats = sqlite.prepare(`
-          SELECT 
-            COUNT(*) as count,
-            AVG(overallRating) as avgRating
-          FROM reviews
-          WHERE restaurantId = ?
-        `).get(restaurantId) as { count: number; avgRating: number | null };
-
-        const reviewCount = stats?.count || 0;
-        const rating = reviewCount > 0 ? Number((stats.avgRating || 0).toFixed(1)) : 0;
-
-        sqlite.prepare(`
-          UPDATE restaurants 
-          SET rating = ?, reviewCount = ? 
-          WHERE id = ?
-        `).run(rating, reviewCount, restaurantId);
-
-        return { rating, reviewCount };
-      },
-      () => {
-        const revs = memReviews.filter(r => r.restaurantId === restaurantId);
-        const reviewCount = revs.length;
-        const avg = reviewCount > 0 ? Number((revs.reduce((s, r) => s + r.overallRating, 0) / reviewCount).toFixed(1)) : 0;
-        const rest = memRestaurants.find(r => r.id === restaurantId);
-        if (rest) {
-          rest.rating = avg;
-          rest.reviewCount = reviewCount;
-        }
-        return { rating: avg, reviewCount };
-      }
-    );
+  getUserById: async (id: string): Promise<UserProfile | null> => {
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      const user = await db.collection<UserProfile>(COLLECTIONS.USERS).findOne({ id });
+      return cleanDoc<UserProfile>(user);
+    }
+    return memUsers.find(u => u.id === id) || null;
   },
 
-  getReviewStats: (restaurantId: string): ReviewStats => {
-    return safeQuery(
-      () => {
-        const reviews = sqlite.prepare('SELECT * FROM reviews WHERE restaurantId = ?').all(restaurantId) as any[];
-        const reviewCount = reviews.length;
-        const distribution: { [star: number]: number } = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-        let sumOverall = 0, sumFood = 0, countFood = 0;
-        let sumService = 0, countService = 0;
-        let sumAmbience = 0, countAmbience = 0;
-        let sumValue = 0, countValue = 0;
-
-        for (const r of reviews) {
-          const overall = Math.max(1, Math.min(5, Math.round(Number(r.overallRating))));
-          distribution[overall] = (distribution[overall] || 0) + 1;
-          sumOverall += Number(r.overallRating);
-          if (r.foodRating !== null && r.foodRating !== undefined) { sumFood += Number(r.foodRating); countFood++; }
-          if (r.serviceRating !== null && r.serviceRating !== undefined) { sumService += Number(r.serviceRating); countService++; }
-          if (r.ambienceRating !== null && r.ambienceRating !== undefined) { sumAmbience += Number(r.ambienceRating); countAmbience++; }
-          if (r.valueRating !== null && r.valueRating !== undefined) { sumValue += Number(r.valueRating); countValue++; }
-        }
-
-        return {
-          averageRating: reviewCount > 0 ? Number((sumOverall / reviewCount).toFixed(1)) : 0,
-          reviewCount,
-          distribution,
-          avgFood: countFood > 0 ? Number((sumFood / countFood).toFixed(1)) : undefined,
-          avgService: countService > 0 ? Number((sumService / countService).toFixed(1)) : undefined,
-          avgAmbience: countAmbience > 0 ? Number((sumAmbience / countAmbience).toFixed(1)) : undefined,
-          avgValue: countValue > 0 ? Number((sumValue / countValue).toFixed(1)) : undefined
-        };
-      },
-      () => {
-        const revs = memReviews.filter(r => r.restaurantId === restaurantId);
-        const reviewCount = revs.length;
-        const distribution: { [star: number]: number } = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-        let sumOverall = 0, sumFood = 0, countFood = 0;
-        let sumService = 0, countService = 0;
-        let sumAmbience = 0, countAmbience = 0;
-        let sumValue = 0, countValue = 0;
-
-        for (const r of revs) {
-          const overall = Math.max(1, Math.min(5, Math.round(r.overallRating)));
-          distribution[overall] = (distribution[overall] || 0) + 1;
-          sumOverall += r.overallRating;
-          if (r.foodRating) { sumFood += r.foodRating; countFood++; }
-          if (r.serviceRating) { sumService += r.serviceRating; countService++; }
-          if (r.ambienceRating) { sumAmbience += r.ambienceRating; countAmbience++; }
-          if (r.valueRating) { sumValue += r.valueRating; countValue++; }
-        }
-
-        return {
-          averageRating: reviewCount > 0 ? Number((sumOverall / reviewCount).toFixed(1)) : 0,
-          reviewCount,
-          distribution,
-          avgFood: countFood > 0 ? Number((sumFood / countFood).toFixed(1)) : undefined,
-          avgService: countService > 0 ? Number((sumService / countService).toFixed(1)) : undefined,
-          avgAmbience: countAmbience > 0 ? Number((sumAmbience / countAmbience).toFixed(1)) : undefined,
-          avgValue: countValue > 0 ? Number((sumValue / countValue).toFixed(1)) : undefined
-        };
-      }
-    );
+  getUserByEmail: async (email: string): Promise<UserProfile | null> => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      const user = await db.collection<UserProfile>(COLLECTIONS.USERS).findOne({
+        email: { $regex: new RegExp(`^${cleanEmail}$`, 'i') }
+      });
+      return cleanDoc<UserProfile>(user);
+    }
+    return memUsers.find(u => u.email.toLowerCase() === cleanEmail) || null;
   },
 
-  getReviews: (filter: {
+  saveUser: async (u: UserProfile): Promise<UserProfile> => {
+    const userDoc: UserProfile = {
+      ...u,
+      email: u.email.trim().toLowerCase(),
+      createdAt: u.createdAt || new Date().toISOString()
+    };
+
+    // If password is plain text, hash it securely before persistence
+    if (userDoc.password && isLegacyPlainText(userDoc.password)) {
+      userDoc.password = await hashPassword(userDoc.password);
+    }
+
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      await db.collection(COLLECTIONS.USERS).updateOne(
+        { id: userDoc.id },
+        { $set: { ...userDoc, _id: userDoc.id } },
+        { upsert: true }
+      );
+      return userDoc;
+    }
+
+    const idx = memUsers.findIndex(item => item.id === userDoc.id || item.email.toLowerCase() === userDoc.email);
+    if (idx >= 0) memUsers[idx] = userDoc;
+    else memUsers.push(userDoc);
+    return userDoc;
+  },
+
+  hasAnyAdmin: async (): Promise<boolean> => {
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      const count = await db.collection(COLLECTIONS.USERS).countDocuments({ role: 'admin' });
+      return count > 0;
+    }
+    return memUsers.some(u => u.role === 'admin');
+  },
+
+  // ADMIN ANALYTICS & RESTAURANT GOVERNANCE
+  getAdminStats: async () => {
+    const restaurants = await serverDb.getRestaurants();
+    const reservations = await serverDb.getReservations();
+    const users = await serverDb.getUsers();
+
+    return {
+      totalRestaurants: restaurants.length,
+      pendingApprovals: restaurants.filter(r => r.status === 'pending_approval').length,
+      approvedRestaurants: restaurants.filter(r => r.status === 'published').length,
+      rejectedRegistrations: restaurants.filter(r => r.status === 'rejected').length,
+      suspendedRestaurants: restaurants.filter(r => r.status === 'suspended').length,
+      totalReservations: reservations.length,
+      totalCustomers: users.filter(u => u.role === 'customer').length
+    };
+  },
+
+  updateRestaurantApprovalStatus: async (
+    restaurantId: string,
+    status: RestaurantStatus,
+    metadata?: {
+      adminId?: string;
+      reason?: string;
+    }
+  ): Promise<Restaurant | null> => {
+    const existing = await serverDb.getRestaurantById(restaurantId);
+    if (!existing) return null;
+
+    const nowIso = new Date().toISOString();
+    const updateData: Partial<Restaurant> = {
+      status,
+      reviewedByAdminId: metadata?.adminId || existing.reviewedByAdminId,
+      reviewedAt: nowIso
+    };
+
+    if (status === 'rejected') {
+      updateData.rejectionReason = metadata?.reason || 'Registration did not meet guidelines.';
+    } else if (status === 'suspended') {
+      updateData.suspendedAt = nowIso;
+      updateData.suspendedReason = metadata?.reason || 'Temporarily suspended by administrator.';
+    } else if (status === 'published') {
+      updateData.suspendedAt = undefined;
+      updateData.suspendedReason = undefined;
+      updateData.rejectionReason = undefined;
+    }
+
+    const updated = { ...existing, ...updateData };
+    return await serverDb.saveRestaurant(updated);
+  },
+
+  getAdminRestaurants: async (filter?: { status?: string; search?: string }) => {
+    const restaurants = await serverDb.getRestaurants();
+    const users = await serverDb.getUsers();
+
+    let filtered = restaurants;
+    if (filter?.status && filter.status !== 'all') {
+      filtered = filtered.filter(r => r.status === filter.status);
+    }
+    if (filter?.search) {
+      const q = filter.search.toLowerCase();
+      filtered = filtered.filter(r =>
+        r.name.toLowerCase().includes(q) ||
+        r.city.toLowerCase().includes(q) ||
+        r.cuisineType.some(c => c.toLowerCase().includes(q))
+      );
+    }
+
+    return Promise.all(filtered.map(async r => {
+      const owner = users.find(u => u.id === r.ownerId);
+      const tables = await serverDb.getTables(r.id);
+      return {
+        ...r,
+        owner,
+        tableCount: tables.length
+      };
+    }));
+  },
+
+  // RATINGS & REVIEWS ENGINE
+  recalculateRestaurantRating: async (restaurantId: string): Promise<{ rating: number; reviewCount: number }> => {
+    const reviews = await serverDb.getReviews({ restaurantId });
+    if (reviews.length === 0) {
+      return { rating: 5.0, reviewCount: 0 };
+    }
+
+    const total = reviews.reduce((sum, r) => sum + r.overallRating, 0);
+    const avg = Number((total / reviews.length).toFixed(1));
+    const count = reviews.length;
+
+    const rest = await serverDb.getRestaurantById(restaurantId);
+    if (rest) {
+      rest.rating = avg;
+      rest.reviewCount = count;
+      await serverDb.saveRestaurant(rest);
+    }
+
+    return { rating: avg, reviewCount: count };
+  },
+
+  getReviewStats: async (restaurantId: string): Promise<ReviewStats> => {
+    const reviews = await serverDb.getReviews({ restaurantId });
+    if (reviews.length === 0) {
+      return {
+        averageRating: 5.0,
+        reviewCount: 0,
+        distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+        avgFood: 5.0,
+        avgService: 5.0,
+        avgAmbience: 5.0,
+        avgValue: 5.0
+      };
+    }
+
+    const distribution: { [star: number]: number } = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    let sumOverall = 0;
+    let sumFood = 0, countFood = 0;
+    let sumService = 0, countService = 0;
+    let sumAmbience = 0, countAmbience = 0;
+    let sumValue = 0, countValue = 0;
+
+    for (const r of reviews) {
+      const star = Math.max(1, Math.min(5, Math.round(r.overallRating)));
+      distribution[star] = (distribution[star] || 0) + 1;
+      sumOverall += r.overallRating;
+
+      if (r.foodRating) { sumFood += r.foodRating; countFood++; }
+      if (r.serviceRating) { sumService += r.serviceRating; countService++; }
+      if (r.ambienceRating) { sumAmbience += r.ambienceRating; countAmbience++; }
+      if (r.valueRating) { sumValue += r.valueRating; countValue++; }
+    }
+
+    return {
+      averageRating: Number((sumOverall / reviews.length).toFixed(1)),
+      reviewCount: reviews.length,
+      distribution,
+      avgFood: countFood ? Number((sumFood / countFood).toFixed(1)) : undefined,
+      avgService: countService ? Number((sumService / countService).toFixed(1)) : undefined,
+      avgAmbience: countAmbience ? Number((sumAmbience / countAmbience).toFixed(1)) : undefined,
+      avgValue: countValue ? Number((sumValue / countValue).toFixed(1)) : undefined
+    };
+  },
+
+  getReviews: async (filter: {
     restaurantId?: string;
     customerId?: string;
-    reservationId?: string;
-    sortBy?: 'recent' | 'highest' | 'lowest';
-  }): Review[] => {
-    return safeQuery(
-      () => {
-        let query = `
-          SELECT r.*, res.reservationDate as visitDate, res.partySize as partySize
-          FROM reviews r
-          LEFT JOIN reservations res ON r.reservationId = res.id
-          WHERE 1=1
-        `;
-        const params: any[] = [];
-        if (filter.restaurantId) { query += ' AND r.restaurantId = ?'; params.push(filter.restaurantId); }
-        if (filter.customerId) { query += ' AND r.customerId = ?'; params.push(filter.customerId); }
-        if (filter.reservationId) { query += ' AND r.reservationId = ?'; params.push(filter.reservationId); }
-        if (filter.sortBy === 'highest') query += ' ORDER BY r.overallRating DESC, r.createdAt DESC';
-        else if (filter.sortBy === 'lowest') query += ' ORDER BY r.overallRating ASC, r.createdAt DESC';
-        else query += ' ORDER BY r.createdAt DESC';
-        const rows = sqlite.prepare(query).all(...params);
-        return rows.map(mapReview);
-      },
-      () => {
-        let list = [...memReviews];
-        if (filter.restaurantId) list = list.filter(r => r.restaurantId === filter.restaurantId);
-        if (filter.customerId) list = list.filter(r => r.customerId === filter.customerId);
-        if (filter.reservationId) list = list.filter(r => r.reservationId === filter.reservationId);
-        if (filter.sortBy === 'highest') list.sort((a, b) => b.overallRating - a.overallRating);
-        else if (filter.sortBy === 'lowest') list.sort((a, b) => a.overallRating - b.overallRating);
-        else list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        return list;
-      }
-    );
+    minRating?: number;
+    sort?: 'recent' | 'highest' | 'lowest';
+  }): Promise<Review[]> => {
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      const query: any = {};
+      if (filter.restaurantId) query.restaurantId = filter.restaurantId;
+      if (filter.customerId) query.customerId = filter.customerId;
+      if (filter.minRating) query.overallRating = { $gte: filter.minRating };
+
+      const sortOption: any = {};
+      if (filter.sort === 'highest') sortOption.overallRating = -1;
+      else if (filter.sort === 'lowest') sortOption.overallRating = 1;
+      else sortOption.createdAt = -1;
+
+      const list = await db.collection<Review>(COLLECTIONS.REVIEWS)
+        .find(query)
+        .sort(sortOption)
+        .toArray();
+      return list.map(cleanDoc<Review>);
+    }
+
+    let list = [...memReviews];
+    if (filter.restaurantId) list = list.filter(r => r.restaurantId === filter.restaurantId);
+    if (filter.customerId) list = list.filter(r => r.customerId === filter.customerId);
+    if (filter.minRating !== undefined) list = list.filter(r => r.overallRating >= filter.minRating!);
+
+    if (filter.sort === 'highest') list.sort((a, b) => b.overallRating - a.overallRating);
+    else if (filter.sort === 'lowest') list.sort((a, b) => a.overallRating - b.overallRating);
+    else list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return list;
   },
 
-  getReviewById: (id: string): Review | null => {
-    return safeQuery(
-      () => {
-        const row = sqlite.prepare(`
-          SELECT r.*, res.reservationDate as visitDate, res.partySize as partySize
-          FROM reviews r
-          LEFT JOIN reservations res ON r.reservationId = res.id
-          WHERE r.id = ?
-        `).get(id);
-        return row ? mapReview(row) : null;
-      },
-      () => memReviews.find(r => r.id === id) || null
-    );
+  getReviewById: async (id: string): Promise<Review | null> => {
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      const review = await db.collection<Review>(COLLECTIONS.REVIEWS).findOne({ id });
+      return cleanDoc<Review>(review);
+    }
+    return memReviews.find(r => r.id === id) || null;
   },
 
-  getReviewByReservationId: (reservationId: string): Review | null => {
-    return safeQuery(
-      () => {
-        const row = sqlite.prepare(`
-          SELECT r.*, res.reservationDate as visitDate, res.partySize as partySize
-          FROM reviews r
-          LEFT JOIN reservations res ON r.reservationId = res.id
-          WHERE r.reservationId = ?
-        `).get(reservationId);
-        return row ? mapReview(row) : null;
-      },
-      () => memReviews.find(r => r.reservationId === reservationId) || null
-    );
+  getReviewByReservationId: async (reservationId: string): Promise<Review | null> => {
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      const review = await db.collection<Review>(COLLECTIONS.REVIEWS).findOne({ reservationId });
+      return cleanDoc<Review>(review);
+    }
+    return memReviews.find(r => r.reservationId === reservationId) || null;
   },
 
-  createReview: (data: {
+  createReview: async (data: {
     restaurantId: string;
     customerId: string;
     customerName: string;
@@ -2059,55 +1451,41 @@ export const serverDb = {
     valueRating?: number;
     comment?: string;
     tags?: string[];
-  }): { success: boolean; review?: Review; error?: string } => {
-    // 1. Verify reservation existence & completion
-    const reservation = serverDb.getReservationById(data.reservationId);
+  }): Promise<{ success: boolean; review?: Review; error?: string }> => {
+    const reservation = await serverDb.getReservationById(data.reservationId);
     if (!reservation) {
-      return { success: false, error: 'Reservation not found.' };
+      return { success: false, error: 'Valid completed reservation required to leave a review.' };
     }
 
     if (reservation.customerId !== data.customerId) {
-      return { success: false, error: 'Unauthorized: You can only review your own reservations.' };
+      return { success: false, error: 'Unauthorized: You may only review reservations made by your account.' };
     }
 
     if (reservation.status !== 'completed') {
-      return { 
-        success: false, 
-        error: `Only reservations with 'completed' dining status can be reviewed. Current status is '${reservation.status}'.` 
+      return {
+        success: false,
+        error: `Only completed dining reservations can be reviewed (Current reservation status: "${reservation.status}").`
       };
     }
 
-    // 2. Prevent restaurant owners from reviewing their own restaurant
-    const rest = serverDb.getRestaurantById(data.restaurantId);
-    if (rest && rest.ownerId === data.customerId) {
-      return { success: false, error: 'Restaurant owners cannot review their own restaurant.' };
+    const rest = await serverDb.getRestaurantById(data.restaurantId);
+    if (!rest || rest.id !== reservation.restaurantId) {
+      return { success: false, error: 'Reservation does not match this restaurant.' };
     }
 
-    // 3. Check for duplicate review on this reservation
-    const existing = serverDb.getReviewByReservationId(data.reservationId);
+    const existing = await serverDb.getReviewByReservationId(data.reservationId);
     if (existing) {
-      return { success: false, error: 'This completed reservation has already been reviewed.' };
+      return { success: false, error: 'You have already submitted a review for this dining reservation.' };
     }
 
-    // 4. Validate rating ranges (1-5)
     if (!data.overallRating || data.overallRating < 1 || data.overallRating > 5) {
-      return { success: false, error: 'Overall star rating is required and must be between 1 and 5.' };
+      return { success: false, error: 'An overall rating between 1 and 5 stars is required.' };
     }
 
-    const validateRating = (val?: number) => {
-      if (val === undefined || val === null) return true;
-      return typeof val === 'number' && val >= 1 && val <= 5;
-    };
+    const id = `rev-${Date.now()}`;
+    const nowIso = new Date().toISOString();
 
-    if (!validateRating(data.foodRating) || !validateRating(data.serviceRating) ||
-        !validateRating(data.ambienceRating) || !validateRating(data.valueRating)) {
-      return { success: false, error: 'Detailed category ratings must be between 1 and 5.' };
-    }
-
-    const id = `rev-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
-    const now = new Date().toISOString();
-
-    const createdReview: Review = {
+    const newReview: Review = {
       id,
       restaurantId: data.restaurantId,
       customerId: data.customerId,
@@ -2119,247 +1497,153 @@ export const serverDb = {
       serviceRating: data.serviceRating ? Math.round(data.serviceRating) : undefined,
       ambienceRating: data.ambienceRating ? Math.round(data.ambienceRating) : undefined,
       valueRating: data.valueRating ? Math.round(data.valueRating) : undefined,
-      comment: data.comment ? data.comment.trim() : undefined,
-      tags: data.tags && Array.isArray(data.tags) ? data.tags : undefined,
-      createdAt: now,
-      updatedAt: now,
-      visitDate: reservation.reservationDate,
-      partySize: reservation.partySize
+      comment: data.comment,
+      tags: data.tags,
+      createdAt: nowIso,
+      updatedAt: nowIso
     };
 
-    try {
-      safeMutation(
-        () => {
-          sqlite.prepare(`
-            INSERT INTO reviews (
-              id, restaurantId, customerId, customerName, customerEmail, reservationId,
-              overallRating, foodRating, serviceRating, ambienceRating, valueRating,
-              comment, tags, createdAt, updatedAt
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(
-            id,
-            data.restaurantId,
-            data.customerId,
-            data.customerName || reservation.customerName,
-            data.customerEmail || reservation.customerEmail,
-            data.reservationId,
-            Math.round(data.overallRating),
-            data.foodRating ? Math.round(data.foodRating) : null,
-            data.serviceRating ? Math.round(data.serviceRating) : null,
-            data.ambienceRating ? Math.round(data.ambienceRating) : null,
-            data.valueRating ? Math.round(data.valueRating) : null,
-            data.comment ? data.comment.trim() : null,
-            data.tags && Array.isArray(data.tags) ? JSON.stringify(data.tags) : null,
-            now,
-            now
-          );
-        },
-        () => {
-          memReviews.unshift({ ...createdReview });
-        }
-      );
-
-      // Recalculate restaurant overall rating & review count
-      serverDb.recalculateRestaurantRating(data.restaurantId);
-
-      const created = serverDb.getReviewById(id);
-      return { success: true, review: created || createdReview };
-    } catch (err: any) {
-      return { success: false, error: err.message || 'Database error creating review' };
+    if (isMongoConfigured()) {
+      await ensureMongoSeeded();
+      const db = await getDb();
+      await db.collection<any>(COLLECTIONS.REVIEWS).insertOne({
+        ...newReview,
+        _id: newReview.id
+      });
+    } else {
+      memReviews.unshift(newReview);
     }
+
+    await serverDb.recalculateRestaurantRating(data.restaurantId);
+    return { success: true, review: newReview };
   },
 
-  updateReview: (id: string, customerId: string, data: {
-    overallRating?: number;
-    foodRating?: number;
-    serviceRating?: number;
-    ambienceRating?: number;
-    valueRating?: number;
-    comment?: string;
-    tags?: string[];
-  }): { success: boolean; review?: Review; error?: string } => {
-    const existing = serverDb.getReviewById(id);
-    if (!existing) {
-      return { success: false, error: 'Review not found.' };
+  updateReview: async (
+    id: string,
+    customerId: string,
+    data: {
+      overallRating?: number;
+      foodRating?: number;
+      serviceRating?: number;
+      ambienceRating?: number;
+      valueRating?: number;
+      comment?: string;
+      tags?: string[];
+    }
+  ): Promise<{ success: boolean; review?: Review; error?: string }> => {
+    const existing = await serverDb.getReviewById(id);
+    if (!existing) return { success: false, error: 'Review not found.' };
+    if (existing.customerId !== customerId) return { success: false, error: 'Unauthorized to edit this review.' };
+
+    const updated: Review = {
+      ...existing,
+      overallRating: data.overallRating !== undefined ? Math.round(data.overallRating) : existing.overallRating,
+      foodRating: data.foodRating !== undefined ? Math.round(data.foodRating) : existing.foodRating,
+      serviceRating: data.serviceRating !== undefined ? Math.round(data.serviceRating) : existing.serviceRating,
+      ambienceRating: data.ambienceRating !== undefined ? Math.round(data.ambienceRating) : existing.ambienceRating,
+      valueRating: data.valueRating !== undefined ? Math.round(data.valueRating) : existing.valueRating,
+      comment: data.comment !== undefined ? data.comment : existing.comment,
+      tags: data.tags !== undefined ? data.tags : existing.tags,
+      updatedAt: new Date().toISOString()
+    };
+
+    if (isMongoConfigured()) {
+      const db = await getDb();
+      await db.collection(COLLECTIONS.REVIEWS).updateOne({ id }, { $set: updated });
+    } else {
+      const idx = memReviews.findIndex(r => r.id === id);
+      if (idx >= 0) memReviews[idx] = updated;
     }
 
-    if (existing.customerId !== customerId) {
-      return { success: false, error: 'Unauthorized: You can only edit your own reviews.' };
-    }
-
-    const overallRating = data.overallRating !== undefined ? data.overallRating : existing.overallRating;
-    if (!overallRating || overallRating < 1 || overallRating > 5) {
-      return { success: false, error: 'Overall star rating must be between 1 and 5.' };
-    }
-
-    const foodRating = data.foodRating !== undefined ? (data.foodRating || null) : (existing.foodRating || null);
-    const serviceRating = data.serviceRating !== undefined ? (data.serviceRating || null) : (existing.serviceRating || null);
-    const ambienceRating = data.ambienceRating !== undefined ? (data.ambienceRating || null) : (existing.ambienceRating || null);
-    const valueRating = data.valueRating !== undefined ? (data.valueRating || null) : (existing.valueRating || null);
-    const comment = data.comment !== undefined ? (data.comment?.trim() || null) : (existing.comment || null);
-    const tags = data.tags !== undefined ? JSON.stringify(data.tags) : JSON.stringify(existing.tags || []);
-    const now = new Date().toISOString();
-
-    try {
-      safeMutation(
-        () => {
-          sqlite.prepare(`
-            UPDATE reviews SET 
-              overallRating = ?, foodRating = ?, serviceRating = ?, ambienceRating = ?, valueRating = ?,
-              comment = ?, tags = ?, updatedAt = ?
-            WHERE id = ?
-          `).run(
-            Math.round(overallRating),
-            foodRating ? Math.round(foodRating) : null,
-            serviceRating ? Math.round(serviceRating) : null,
-            ambienceRating ? Math.round(ambienceRating) : null,
-            valueRating ? Math.round(valueRating) : null,
-            comment,
-            tags,
-            now,
-            id
-          );
-        },
-        () => {
-          const idx = memReviews.findIndex(r => r.id === id);
-          if (idx !== -1) {
-            memReviews[idx] = {
-              ...memReviews[idx],
-              overallRating: Math.round(overallRating),
-              foodRating: foodRating ? Math.round(foodRating) : undefined,
-              serviceRating: serviceRating ? Math.round(serviceRating) : undefined,
-              ambienceRating: ambienceRating ? Math.round(ambienceRating) : undefined,
-              valueRating: valueRating ? Math.round(valueRating) : undefined,
-              comment: comment || undefined,
-              tags: data.tags !== undefined ? data.tags : memReviews[idx].tags,
-              updatedAt: now
-            };
-          }
-        }
-      );
-
-      // Recalculate
-      serverDb.recalculateRestaurantRating(existing.restaurantId);
-
-      const updated = serverDb.getReviewById(id);
-      return { success: true, review: updated! };
-    } catch (err: any) {
-      return { success: false, error: err.message || 'Error updating review' };
-    }
+    await serverDb.recalculateRestaurantRating(existing.restaurantId);
+    return { success: true, review: updated };
   },
 
-  deleteReview: (id: string, customerId: string): { success: boolean; error?: string } => {
-    const existing = serverDb.getReviewById(id);
-    if (!existing) {
-      return { success: false, error: 'Review not found.' };
+  deleteReview: async (id: string, customerId: string): Promise<{ success: boolean; error?: string }> => {
+    const existing = await serverDb.getReviewById(id);
+    if (!existing) return { success: false, error: 'Review not found.' };
+    if (existing.customerId !== customerId) return { success: false, error: 'Unauthorized to delete this review.' };
+
+    if (isMongoConfigured()) {
+      const db = await getDb();
+      await db.collection(COLLECTIONS.REVIEWS).deleteOne({ id });
+    } else {
+      memReviews = memReviews.filter(r => r.id !== id);
     }
 
-    if (existing.customerId !== customerId) {
-      return { success: false, error: 'Unauthorized: You can only delete your own reviews.' };
-    }
-
-    try {
-      safeMutation(
-        () => {
-          sqlite.prepare('DELETE FROM reviews WHERE id = ?').run(id);
-        },
-        () => {
-          const idx = memReviews.findIndex(r => r.id === id);
-          if (idx !== -1) memReviews.splice(idx, 1);
-        }
-      );
-      // Recalculate restaurant overall rating & count
-      serverDb.recalculateRestaurantRating(existing.restaurantId);
-      return { success: true };
-    } catch (err: any) {
-      return { success: false, error: err.message || 'Error deleting review' };
-    }
+    await serverDb.recalculateRestaurantRating(existing.restaurantId);
+    return { success: true };
   },
 
-  respondToReview: (reviewId: string, ownerId: string, responseText: string): { success: boolean; review?: Review; error?: string } => {
-    const review = serverDb.getReviewById(reviewId);
-    if (!review) {
-      return { success: false, error: 'Review not found.' };
-    }
+  respondToReview: async (
+    reviewId: string,
+    ownerId: string,
+    responseText: string
+  ): Promise<{ success: boolean; review?: Review; error?: string }> => {
+    const review = await serverDb.getReviewById(reviewId);
+    if (!review) return { success: false, error: 'Review not found.' };
 
-    const rest = serverDb.getRestaurantById(review.restaurantId);
+    const rest = await serverDb.getRestaurantById(review.restaurantId);
     if (!rest || rest.ownerId !== ownerId) {
-      return { success: false, error: 'Unauthorized: Only the verified owner of this restaurant can respond to this review.' };
+      return { success: false, error: 'Unauthorized: Only the restaurant owner can post an official response.' };
     }
 
-    const now = new Date().toISOString();
-    safeMutation(
-      () => {
-        sqlite.prepare(`
-          UPDATE reviews 
-          SET ownerResponse = ?, ownerRespondedAt = ?, updatedAt = ?
-          WHERE id = ?
-        `).run(responseText.trim(), now, now, reviewId);
-      },
-      () => {
-        const idx = memReviews.findIndex(r => r.id === reviewId);
-        if (idx !== -1) {
-          memReviews[idx].ownerResponse = responseText.trim();
-          memReviews[idx].ownerRespondedAt = now;
-          memReviews[idx].updatedAt = now;
-        }
-      }
-    );
+    const nowIso = new Date().toISOString();
+    const updateData = {
+      ownerResponse: responseText,
+      ownerRespondedAt: nowIso,
+      updatedAt: nowIso
+    };
 
-    const updated = serverDb.getReviewById(reviewId);
-    return { success: true, review: updated! };
+    if (isMongoConfigured()) {
+      const db = await getDb();
+      const updated = await db.collection<Review>(COLLECTIONS.REVIEWS).findOneAndUpdate(
+        { id: reviewId },
+        { $set: updateData },
+        { returnDocument: 'after' }
+      );
+      return { success: true, review: cleanDoc<Review>(updated) };
+    }
+
+    const idx = memReviews.findIndex(r => r.id === reviewId);
+    if (idx >= 0) {
+      memReviews[idx] = { ...memReviews[idx], ...updateData };
+      return { success: true, review: memReviews[idx] };
+    }
+    return { success: false, error: 'Review not found.' };
   },
 
-  reportReview: (reviewId: string, reporterId: string, reason: string): { success: boolean; review?: Review; error?: string } => {
-    const review = serverDb.getReviewById(reviewId);
-    if (!review) {
-      return { success: false, error: 'Review not found.' };
+  reportReview: async (
+    reviewId: string,
+    reporterId: string,
+    reason: string
+  ): Promise<{ success: boolean; review?: Review; error?: string }> => {
+    const review = await serverDb.getReviewById(reviewId);
+    if (!review) return { success: false, error: 'Review not found.' };
+
+    const nowIso = new Date().toISOString();
+    const updateData = {
+      isReported: true,
+      reportReason: reason || 'Flagged for moderation by community user',
+      reportedAt: nowIso,
+      updatedAt: nowIso
+    };
+
+    if (isMongoConfigured()) {
+      const db = await getDb();
+      const updated = await db.collection<Review>(COLLECTIONS.REVIEWS).findOneAndUpdate(
+        { id: reviewId },
+        { $set: updateData },
+        { returnDocument: 'after' }
+      );
+      return { success: true, review: cleanDoc<Review>(updated) };
     }
 
-    const now = new Date().toISOString();
-    safeMutation(
-      () => {
-        sqlite.prepare(`
-          UPDATE reviews 
-          SET isReported = 1, reportReason = ?, reportedAt = ?, updatedAt = ?
-          WHERE id = ?
-        `).run(reason.trim(), now, now, reviewId);
-      },
-      () => {
-        const idx = memReviews.findIndex(r => r.id === reviewId);
-        if (idx !== -1) {
-          memReviews[idx].isReported = true;
-          memReviews[idx].reportReason = reason.trim();
-          memReviews[idx].reportedAt = now;
-          memReviews[idx].updatedAt = now;
-        }
-      }
-    );
-
-    const updated = serverDb.getReviewById(reviewId);
-    return { success: true, review: updated! };
+    const idx = memReviews.findIndex(r => r.id === reviewId);
+    if (idx >= 0) {
+      memReviews[idx] = { ...memReviews[idx], ...updateData };
+      return { success: true, review: memReviews[idx] };
+    }
+    return { success: false, error: 'Review not found.' };
   }
 };
-
-// Helpers
-export const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-export function timeToMinutes(timeStr: string): number {
-  const [h, m] = timeStr.split(':').map(Number);
-  return h * 60 + (m || 0);
-}
-
-export function minutesToTime(mins: number): string {
-  const h = Math.floor(mins / 60) % 24;
-  const m = mins % 60;
-  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-}
-
-export function formatTime12h(timeStr: string): string {
-  const [hStr, mStr] = timeStr.split(':');
-  let h = parseInt(hStr, 10);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12;
-  if (h === 0) h = 12;
-  return `${h}:${mStr} ${ampm}`;
-}

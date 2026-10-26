@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = serverDb.respondToReview(reviewId, ownerId, response);
+    const result = await serverDb.respondToReview(reviewId, ownerId, response);
     if (!result.success) {
       return NextResponse.json(result, { status: 400 });
     }

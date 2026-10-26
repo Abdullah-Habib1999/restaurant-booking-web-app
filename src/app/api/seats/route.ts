@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     }
 
     const partySize = partySizeStr ? parseInt(partySizeStr, 10) : 2;
-    const tables = serverDb.getTableSeatsAvailability(restaurantId, date, time, partySize);
+    const tables = await serverDb.getTableSeatsAvailability(restaurantId, date, time, partySize);
 
     return NextResponse.json({ tables });
   } catch (err: any) {
@@ -28,11 +28,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action, restaurantId, date, time, tableId, seatNumbers, holdToken, durationSeconds } = body;
+    const { action, restaurantId, date, time, tableId, seatNumbers, holdToken, durationMinutes } = body;
 
     if (action === 'hold') {
-      if (!restaurantId || !date || !time || !tableId || !holdToken) {
-        return NextResponse.json({ error: 'restaurantId, date, time, tableId, and holdToken are required' }, { status: 400 });
+      if (!restaurantId || !date || !time || !tableId) {
+        return NextResponse.json({ error: 'restaurantId, date, time, and tableId are required' }, { status: 400 });
       }
 
       const result = serverDb.holdSeats({
@@ -41,8 +41,7 @@ export async function POST(request: NextRequest) {
         time,
         tableId,
         seatNumbers,
-        holdToken,
-        durationSeconds: durationSeconds || 300 // default 5 minutes
+        holdDurationMinutes: durationMinutes || 10
       });
 
       if (!result.success) {

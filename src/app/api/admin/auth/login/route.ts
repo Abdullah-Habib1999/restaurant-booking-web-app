@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { serverDb } from '@/lib/serverDb';
-import { supabaseServer } from '@/lib/supabaseServer';
+import { verifyPassword, isLegacyPlainText, hashPassword, generateAdminSessionToken } from '@/lib/authCrypto';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,16 +14,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if any admin exists on this system
-    let hasAdmin = serverDb.hasAnyAdmin();
-    if (!hasAdmin && supabaseServer.isConfigured()) {
-      hasAdmin = await supabaseServer.hasAnyAdmin();
-    }
+    // Check if any admin exists in persistent database
+    const hasAdmin = await serverDb.hasAnyAdmin();
 
     if (!hasAdmin) {
       return NextResponse.json(
         { 
-          error: 'No Super Administrator has been initialized on this instance yet. Please visit /admin/setup to complete initial setup, or configure ADMIN_INITIAL_EMAIL and ADMIN_INITIAL_PASSWORD in Netlify environment variables.',
+          error: 'No Super Administrator has been initialized on this instance yet. Please visit /admin/setup to complete initial setup, or configure ADMIN_INITIAL_EMAIL and ADMIN_INITIAL_PASSWORD in environment variables.',
           needsSetup: true
         },
         { status: 400 }
@@ -31,10 +28,7 @@ export async function POST(request: NextRequest) {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    let user = serverDb.getUserByEmail(cleanEmail);
-    if (!user && supabaseServer.isConfigured()) {
-      user = await supabaseServer.getAdminUserByEmail(cleanEmail);
-    }
+    const user = await serverDb.getUserByEmail(cleanEmail);
 
     if (!user) {
       return NextResponse.json(
@@ -50,15 +44,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (user.password && user.password !== password) {
+    const isMatch = await verifyPassword(password, user.password);
+    if (!isMatch) {
       return NextResponse.json(
         { error: 'Invalid administrator credentials.' },
         { status: 401 }
       );
     }
 
-    // Generate secure session token (based on admin id + timestamp hash)
-    const sessionToken = Buffer.from(`${user.id}:${Date.now()}:${user.email}`).toString('base64');
+    // If password was stored in legacy plain-text format, seamlessly upgrade to scrypt hash on login
+    if (user.password && isLegacyPlainText(user.password)) {
+      try {
+        const upgradedHash = await hashPassword(password);
+        user.password = upgradedHash;
+        await serverDb.saveUser(user);
+      } catch (upgradeErr) {
+        console.warn('Password hash upgrade warning:', upgradeErr);
+      }
+    }
+
+    // Generate secure session token
+    const sessionToken = generateAdminSessionToken(user.id, user.email);
 
     const { password: _, ...safeAdmin } = user;
 

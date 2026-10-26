@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     }
 
     const partySize = partySizeStr ? parseInt(partySizeStr, 10) : 2;
-    const details = serverDb.getSlotAvailabilityDetails(restaurantId, date, partySize);
+    const details = await serverDb.getSlotAvailabilityDetails(restaurantId, date, partySize);
 
     return NextResponse.json(details);
   } catch (err: any) {

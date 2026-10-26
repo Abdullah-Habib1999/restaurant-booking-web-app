@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ authenticated: false, error: 'No admin session provided.' }, { status: 401 });
     }
 
-    const user = serverDb.getUserById(adminId);
+    const user = await serverDb.getUserById(adminId);
     if (!user || user.role !== 'admin') {
       return NextResponse.json({ authenticated: false, error: 'Invalid admin credentials or role.' }, { status: 403 });
     }

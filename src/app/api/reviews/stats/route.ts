@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'restaurantId is required' }, { status: 400 });
     }
 
-    const stats = serverDb.getReviewStats(restaurantId);
+    const stats = await serverDb.getReviewStats(restaurantId);
     return NextResponse.json(stats);
   } catch (err: any) {
     if (err?.digest?.startsWith('NEXT_')) throw err;

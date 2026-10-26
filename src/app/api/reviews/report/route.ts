@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = serverDb.reportReview(reviewId, reporterId || 'anonymous', reason);
+    const result = await serverDb.reportReview(reviewId, reporterId || 'anonymous', reason);
     if (!result.success) {
       return NextResponse.json(result, { status: 400 });
     }

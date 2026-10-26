@@ -122,6 +122,10 @@ let memUsers: UserProfile[] = [
 export const db = {
   // --- RESTAURANTS ---
   getRestaurants: async (): Promise<Restaurant[]> => {
+    if (!isBrowser && typeof window === 'undefined') {
+      const { serverDb } = await import('@/lib/serverDb');
+      return await serverDb.getRestaurants();
+    }
     const data = await apiFetch<Restaurant[]>('/api/restaurants');
     if (data && Array.isArray(data)) {
       memRestaurants = data;
@@ -131,6 +135,10 @@ export const db = {
   },
 
   getRestaurantBySlug: async (slug: string): Promise<Restaurant | null> => {
+    if (!isBrowser && typeof window === 'undefined') {
+      const { serverDb } = await import('@/lib/serverDb');
+      return await serverDb.getRestaurantBySlug(slug);
+    }
     const data = await apiFetch<Restaurant>(`/api/restaurants?slug=${encodeURIComponent(slug)}`);
     if (data) return data;
     const list = await db.getRestaurants();
@@ -138,6 +146,10 @@ export const db = {
   },
 
   getRestaurantById: async (id: string): Promise<Restaurant | null> => {
+    if (!isBrowser && typeof window === 'undefined') {
+      const { serverDb } = await import('@/lib/serverDb');
+      return await serverDb.getRestaurantById(id);
+    }
     const data = await apiFetch<Restaurant>(`/api/restaurants?id=${encodeURIComponent(id)}`);
     if (data) return data;
     const list = await db.getRestaurants();
@@ -161,12 +173,21 @@ export const db = {
 
   // --- TABLES ---
   getTables: async (restaurantId: string): Promise<DiningTable[]> => {
+    if (!isBrowser && typeof window === 'undefined') {
+      const { serverDb } = await import('@/lib/serverDb');
+      return await serverDb.getTables(restaurantId);
+    }
     const data = await apiFetch<{ tables: DiningTable[] }>(`/api/restaurant-data?restaurantId=${encodeURIComponent(restaurantId)}`);
     if (data?.tables) return data.tables;
     return memTables.filter(t => t.restaurantId === restaurantId);
   },
 
   saveTable: async (table: DiningTable): Promise<DiningTable> => {
+    if (!isBrowser && typeof window === 'undefined') {
+      const { serverDb } = await import('@/lib/serverDb');
+      await serverDb.saveTable(table);
+      return table;
+    }
     const data = await apiFetch<DiningTable>('/api/restaurant-data', {
       method: 'POST',
       body: JSON.stringify({ action: 'saveTable', table })
@@ -182,6 +203,11 @@ export const db = {
   },
 
   deleteTable: async (tableId: string): Promise<void> => {
+    if (!isBrowser && typeof window === 'undefined') {
+      const { serverDb } = await import('@/lib/serverDb');
+      await serverDb.deleteTable(tableId);
+      return;
+    }
     await apiFetch('/api/restaurant-data', {
       method: 'POST',
       body: JSON.stringify({ action: 'deleteTable', tableId })
@@ -191,6 +217,10 @@ export const db = {
 
   // --- CINEMA-STYLE SEAT MAP & AVAILABILITY ---
   getTableSeatsAvailability: async (restaurantId: string, date: string, time?: string, partySize: number = 2): Promise<TableSeatStatus[]> => {
+    if (!isBrowser && typeof window === 'undefined') {
+      const { serverDb } = await import('@/lib/serverDb');
+      return await serverDb.getTableSeatsAvailability(restaurantId, date, time || '19:00', partySize);
+    }
     const timeParam = time ? `&time=${encodeURIComponent(time)}` : '';
     const res = await apiFetch<{ tables: TableSeatStatus[] }>(
       `/api/seats?restaurantId=${encodeURIComponent(restaurantId)}&date=${encodeURIComponent(date)}${timeParam}&partySize=${partySize}`
@@ -261,12 +291,21 @@ export const db = {
 
   // --- MENU CATEGORIES & ITEMS ---
   getMenuCategories: async (restaurantId: string): Promise<MenuCategory[]> => {
+    if (!isBrowser && typeof window === 'undefined') {
+      const { serverDb } = await import('@/lib/serverDb');
+      return await serverDb.getMenuCategories(restaurantId);
+    }
     const data = await apiFetch<{ categories: MenuCategory[] }>(`/api/restaurant-data?restaurantId=${encodeURIComponent(restaurantId)}`);
     if (data?.categories) return data.categories.sort((a, b) => a.displayOrder - b.displayOrder);
     return memCategories.filter(c => c.restaurantId === restaurantId).sort((a, b) => a.displayOrder - b.displayOrder);
   },
 
   saveMenuCategory: async (category: MenuCategory): Promise<MenuCategory> => {
+    if (!isBrowser && typeof window === 'undefined') {
+      const { serverDb } = await import('@/lib/serverDb');
+      await serverDb.saveMenuCategory(category);
+      return category;
+    }
     const data = await apiFetch<MenuCategory>('/api/restaurant-data', {
       method: 'POST',
       body: JSON.stringify({ action: 'saveCategory', category })
@@ -282,6 +321,11 @@ export const db = {
   },
 
   deleteMenuCategory: async (categoryId: string): Promise<void> => {
+    if (!isBrowser && typeof window === 'undefined') {
+      const { serverDb } = await import('@/lib/serverDb');
+      await serverDb.deleteMenuCategory(categoryId);
+      return;
+    }
     await apiFetch('/api/restaurant-data', {
       method: 'POST',
       body: JSON.stringify({ action: 'deleteCategory', categoryId })
@@ -290,12 +334,21 @@ export const db = {
   },
 
   getMenuItems: async (restaurantId: string): Promise<MenuItem[]> => {
+    if (!isBrowser && typeof window === 'undefined') {
+      const { serverDb } = await import('@/lib/serverDb');
+      return await serverDb.getMenuItems(restaurantId);
+    }
     const data = await apiFetch<{ items: MenuItem[] }>(`/api/restaurant-data?restaurantId=${encodeURIComponent(restaurantId)}`);
     if (data?.items) return data.items;
     return memMenuItems.filter(m => m.restaurantId === restaurantId);
   },
 
   saveMenuItem: async (item: MenuItem): Promise<MenuItem> => {
+    if (!isBrowser && typeof window === 'undefined') {
+      const { serverDb } = await import('@/lib/serverDb');
+      await serverDb.saveMenuItem(item);
+      return item;
+    }
     const data = await apiFetch<MenuItem>('/api/restaurant-data', {
       method: 'POST',
       body: JSON.stringify({ action: 'saveMenuItem', menuItem: item })
@@ -311,6 +364,11 @@ export const db = {
   },
 
   deleteMenuItem: async (itemId: string): Promise<void> => {
+    if (!isBrowser && typeof window === 'undefined') {
+      const { serverDb } = await import('@/lib/serverDb');
+      await serverDb.deleteMenuItem(itemId);
+      return;
+    }
     await apiFetch('/api/restaurant-data', {
       method: 'POST',
       body: JSON.stringify({ action: 'deleteMenuItem', menuItemId: itemId })
@@ -320,6 +378,10 @@ export const db = {
 
   // --- OPERATING HOURS & CLOSURES ---
   getRestaurantHours: async (restaurantId: string): Promise<RestaurantHours[]> => {
+    if (!isBrowser && typeof window === 'undefined') {
+      const { serverDb } = await import('@/lib/serverDb');
+      return await serverDb.getRestaurantHours(restaurantId);
+    }
     const data = await apiFetch<{ hours: RestaurantHours[] }>(`/api/restaurant-data?restaurantId=${encodeURIComponent(restaurantId)}`);
     if (data?.hours && Array.isArray(data.hours) && data.hours.length > 0) return data.hours;
     const fromMem = memHours.filter(h => h.restaurantId === restaurantId);
@@ -338,6 +400,11 @@ export const db = {
   },
 
   saveRestaurantHours: async (restaurantId: string, hours: RestaurantHours[]): Promise<void> => {
+    if (!isBrowser && typeof window === 'undefined') {
+      const { serverDb } = await import('@/lib/serverDb');
+      await serverDb.saveRestaurantHours(restaurantId, hours);
+      return;
+    }
     await apiFetch('/api/restaurant-data', {
       method: 'POST',
       body: JSON.stringify({ action: 'saveHours', restaurantId, hours })
@@ -360,6 +427,10 @@ export const db = {
 
   // --- RESERVATIONS (SERVER DATABASE BACKED) ---
   getReservations: async (filter?: { restaurantId?: string; customerId?: string }): Promise<Reservation[]> => {
+    if (!isBrowser && typeof window === 'undefined') {
+      const { serverDb } = await import('@/lib/serverDb');
+      return await serverDb.getReservations(filter);
+    }
     const params = new URLSearchParams();
     if (filter?.restaurantId) params.append('restaurantId', filter.restaurantId);
     if (filter?.customerId) params.append('customerId', filter.customerId);
@@ -381,6 +452,10 @@ export const db = {
   },
 
   getReservationById: async (id: string): Promise<Reservation | null> => {
+    if (!isBrowser && typeof window === 'undefined') {
+      const { serverDb } = await import('@/lib/serverDb');
+      return await serverDb.getReservationById(id);
+    }
     const data = await apiFetch<Reservation>(`/api/reservations?id=${encodeURIComponent(id)}`);
     if (data) return data;
     const list = await db.getReservations();
@@ -413,6 +488,10 @@ export const db = {
     date: string,
     partySize: number
   ): Promise<SlotAvailabilityResponse> => {
+    if (!isBrowser && typeof window === 'undefined') {
+      const { serverDb } = await import('@/lib/serverDb');
+      return await serverDb.getSlotAvailabilityDetails(restaurantId, date, partySize);
+    }
     const data = await apiFetch<any>(
       `/api/slots?restaurantId=${encodeURIComponent(restaurantId)}&date=${encodeURIComponent(date)}&partySize=${partySize}`
     );

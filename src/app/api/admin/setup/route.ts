@@ -1,24 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { serverDb } from '@/lib/serverDb';
 import { UserProfile } from '@/types';
-import { supabaseServer } from '@/lib/supabaseServer';
+import { hashPassword, generateAdminSessionToken } from '@/lib/authCrypto';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { fullName, email, password, bootstrapSecret } = body;
 
-    const hasAdmin = serverDb.hasAnyAdmin();
+    const hasAdmin = await serverDb.hasAnyAdmin();
     const serverBootstrapSecret = process.env.ADMIN_BOOTSTRAP_SECRET;
 
     // 1. One-time setup enforcement:
-    // If an admin already exists, lockdown setup. It can only be re-invoked if the exact server-side
+    // If an admin already exists in MongoDB Atlas, lockdown setup. It can only be re-invoked if the exact server-side
     // ADMIN_BOOTSTRAP_SECRET is provided.
     if (hasAdmin) {
       if (!serverBootstrapSecret || bootstrapSecret !== serverBootstrapSecret) {
         return NextResponse.json(
           { 
-            error: 'Super Admin setup is locked. An administrator account already exists. For security, setup cannot be repeated.' 
+            error: 'Super Admin setup is locked. An administrator account already exists. For security, setup cannot be repeated without providing the server-side ADMIN_BOOTSTRAP_SECRET recovery key.' 
           }, 
           { status: 403 }
         );
@@ -60,9 +60,10 @@ export async function POST(request: NextRequest) {
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanName = fullName.trim();
+    const hashedPassword = await hashPassword(password);
 
     // Check if user already exists
-    const existingUser = serverDb.getUserByEmail(cleanEmail);
+    const existingUser = await serverDb.getUserByEmail(cleanEmail);
     let adminUser: UserProfile;
 
     if (existingUser) {
@@ -71,29 +72,25 @@ export async function POST(request: NextRequest) {
         ...existingUser,
         fullName: cleanName,
         role: 'admin',
-        password: password
+        password: hashedPassword
       };
-      serverDb.saveUser(adminUser);
+      await serverDb.saveUser(adminUser);
     } else {
       adminUser = {
         id: `admin-${Date.now()}`,
         email: cleanEmail,
         fullName: cleanName,
         role: 'admin',
-        password: password,
+        password: hashedPassword,
         createdAt: new Date().toISOString()
       };
-      serverDb.saveUser(adminUser);
+      await serverDb.saveUser(adminUser);
     }
 
-    if (supabaseServer.isConfigured()) {
-      await supabaseServer.saveAdminUser(adminUser);
-    }
+    // Generate secure HMAC-signed admin session token
+    const sessionToken = generateAdminSessionToken(adminUser.id, adminUser.email);
 
-    // Generate immediate session token for seamless initial entry
-    const sessionToken = Buffer.from(`${adminUser.id}:${Date.now()}:${adminUser.email}`).toString('base64');
-
-    // Sanitize response: never return password to client
+    // Sanitize response: never return password or hash to client
     const { password: _, ...safeAdmin } = adminUser;
 
     return NextResponse.json({

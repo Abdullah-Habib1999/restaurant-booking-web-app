@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
     // Read request property to ensure dynamic server execution per request
     const _reqUrl = request.url;
     const hasAdmin = await serverDb.hasAnyAdmin();
-    const isBootstrapSecretRequired = Boolean(process.env.ADMIN_BOOTSTRAP_SECRET);
+    const isBootstrapSecretRequired = hasAdmin && Boolean(process.env.ADMIN_BOOTSTRAP_SECRET);
 
     return NextResponse.json({
       hasAdmin,

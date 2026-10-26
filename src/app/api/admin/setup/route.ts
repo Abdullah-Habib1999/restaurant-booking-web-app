@@ -15,22 +15,12 @@ export async function POST(request: NextRequest) {
     // If an admin already exists in MongoDB Atlas, lockdown setup. It can only be re-invoked if the exact server-side
     // ADMIN_BOOTSTRAP_SECRET is provided.
     if (hasAdmin) {
-      if (!serverBootstrapSecret || bootstrapSecret !== serverBootstrapSecret) {
+      if (!serverBootstrapSecret || !bootstrapSecret || bootstrapSecret.trim() !== serverBootstrapSecret.trim()) {
         return NextResponse.json(
           { 
             error: 'Super Admin setup is locked. An administrator account already exists. For security, setup cannot be repeated without providing the server-side ADMIN_BOOTSTRAP_SECRET recovery key.' 
           }, 
           { status: 403 }
-        );
-      }
-    }
-
-    // 2. Validate server-side bootstrap secret if configured in environment
-    if (serverBootstrapSecret) {
-      if (!bootstrapSecret || bootstrapSecret !== serverBootstrapSecret) {
-        return NextResponse.json(
-          { error: 'Invalid bootstrap secret key. Verification failed.' },
-          { status: 401 }
         );
       }
     }

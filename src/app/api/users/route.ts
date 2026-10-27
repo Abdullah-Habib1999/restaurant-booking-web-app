@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { serverDb } from '@/lib/serverDb';
 import { UserProfile } from '@/types';
+import { getAdminFromRequest } from '@/lib/authCrypto';
 
 function sanitizeUser(user: UserProfile | null): Omit<UserProfile, 'password'> | null {
   if (!user) return null;
@@ -24,8 +25,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(sanitizeUser(user));
     }
 
-    const adminId = request.headers.get('x-admin-user-id');
-    const adminUser = adminId ? await serverDb.getUserById(adminId) : null;
+    const adminUser = await getAdminFromRequest(request);
     
     // Only admins can enumerate all users
     if (!adminUser || adminUser.role !== 'admin') {
@@ -46,8 +46,7 @@ export async function POST(request: NextRequest) {
 
     // Prevent unauthorized creation or elevation to 'admin' role
     if (body.role === 'admin') {
-      const adminId = request.headers.get('x-admin-user-id');
-      const adminUser = adminId ? await serverDb.getUserById(adminId) : null;
+      const adminUser = await getAdminFromRequest(request);
       if (!adminUser || adminUser.role !== 'admin') {
         return NextResponse.json(
           { error: 'Forbidden: Admin accounts can only be created via the Super Admin Setup process.' },

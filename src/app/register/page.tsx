@@ -62,8 +62,12 @@ export default function CustomerRegisterPage() {
     };
 
     await db.saveUser(newUser);
-    await login(email, password);
+    const loginRes = await login(email, password);
     setIsSubmitting(false);
+    if (!loginRes.success) {
+      setErrorMessage(loginRes.error || 'Account created. Please log in with your email and password.');
+      return;
+    }
     router.push('/restaurants');
   };
 

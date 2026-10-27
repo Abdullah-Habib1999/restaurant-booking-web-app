@@ -1,23 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { serverDb } from '@/lib/serverDb';
+import { getAdminFromRequest, ADMIN_COOKIE_NAME, generateAdminSessionToken, getSessionCookieOptions } from '@/lib/authCrypto';
 
 export async function GET(request: NextRequest) {
   try {
-    const adminId = request.headers.get('x-admin-user-id');
-    if (!adminId) {
-      return NextResponse.json({ authenticated: false, error: 'No admin session provided.' }, { status: 401 });
+    const adminUser = await getAdminFromRequest(request);
+    if (!adminUser) {
+      return NextResponse.json(
+        { authenticated: false, error: 'Unauthorized: Valid Super Admin session required.' },
+        { status: 401 }
+      );
     }
 
-    const user = await serverDb.getUserById(adminId);
-    if (!user || user.role !== 'admin') {
-      return NextResponse.json({ authenticated: false, error: 'Invalid admin credentials or role.' }, { status: 403 });
-    }
-
-    const { password: _, ...safeAdmin } = user;
-    return NextResponse.json({
+    const { password: _, ...safeAdmin } = adminUser;
+    const response = NextResponse.json({
       authenticated: true,
       admin: safeAdmin
     });
+
+    // Refresh admin session cookie
+    const token = generateAdminSessionToken(adminUser.id, adminUser.email);
+    response.cookies.set(ADMIN_COOKIE_NAME, token, getSessionCookieOptions());
+
+    return response;
   } catch (err: any) {
     if (err?.digest?.startsWith('NEXT_')) throw err;
     console.error('API /api/admin/auth/verify error:', err);

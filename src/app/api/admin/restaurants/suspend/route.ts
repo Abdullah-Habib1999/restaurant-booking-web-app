@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { serverDb } from '@/lib/serverDb';
+import { getAdminFromRequest } from '@/lib/authCrypto';
 
 export async function POST(request: NextRequest) {
   try {
-    const adminId = request.headers.get('x-admin-user-id');
-    if (!adminId) {
-      return NextResponse.json({ error: 'Unauthorized: Admin authentication required.' }, { status: 401 });
-    }
-
-    const adminUser = await serverDb.getUserById(adminId);
-    if (!adminUser || adminUser.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden: Super Admin privileges required.' }, { status: 403 });
+    const adminUser = await getAdminFromRequest(request);
+    if (!adminUser) {
+      return NextResponse.json({ error: 'Unauthorized: Super Admin authentication required.' }, { status: 401 });
     }
 
     const body = await request.json();

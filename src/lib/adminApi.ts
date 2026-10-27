@@ -67,7 +67,10 @@ export const adminAuth = {
 
 export const adminApi = {
   checkStatus: async (): Promise<{ hasAdmin: boolean; isBootstrapSecretRequired: boolean }> => {
-    const res = await fetch('/api/admin/status', { cache: 'no-store' });
+    const res = await fetch('/api/admin/status', { 
+      credentials: 'include',
+      cache: 'no-store' 
+    });
     if (!res.ok) throw new Error('Failed to query admin status');
     return res.json();
   },
@@ -81,11 +84,15 @@ export const adminApi = {
     const res = await fetch('/api/admin/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(data)
     });
     const result = await res.json();
     if (!res.ok) {
       throw new Error(result.error || 'Failed to initialize Super Admin');
+    }
+    if (result.admin) {
+      adminAuth.setStoredAdmin(result.admin, result.token);
     }
     return result;
   },
@@ -94,28 +101,52 @@ export const adminApi = {
     const res = await fetch('/api/admin/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ email, password })
     });
     const result = await res.json();
     if (!res.ok) {
       throw new Error(result.error || 'Login failed');
     }
+    if (result.admin) {
+      adminAuth.setStoredAdmin(result.admin, result.token);
+    }
     return result;
   },
 
+  logout: async (): Promise<void> => {
+    try {
+      await fetch('/api/admin/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch {}
+    adminAuth.clearStoredAdmin();
+  },
+
   verifySession: async (): Promise<{ authenticated: boolean; admin?: UserProfile }> => {
-    const headers = adminAuth.getHeaders();
-    if (!headers['x-admin-user-id']) {
+    try {
+      const headers = adminAuth.getHeaders();
+      const res = await fetch('/api/admin/auth/verify', { 
+        headers, 
+        credentials: 'include',
+        cache: 'no-store' 
+      });
+      if (!res.ok) return { authenticated: false };
+      const data = await res.json();
+      if (data.authenticated && data.admin) {
+        adminAuth.setStoredAdmin(data.admin);
+      }
+      return data;
+    } catch {
       return { authenticated: false };
     }
-    const res = await fetch('/api/admin/auth/verify', { headers, cache: 'no-store' });
-    if (!res.ok) return { authenticated: false };
-    return res.json();
   },
 
   getStats: async (): Promise<AdminStats> => {
     const res = await fetch('/api/admin/stats', {
       headers: adminAuth.getHeaders(),
+      credentials: 'include',
       cache: 'no-store'
     });
     if (!res.ok) {
@@ -132,6 +163,7 @@ export const adminApi = {
 
     const res = await fetch(`/api/admin/restaurants?${query.toString()}`, {
       headers: adminAuth.getHeaders(),
+      credentials: 'include',
       cache: 'no-store'
     });
     if (!res.ok) {
@@ -145,6 +177,7 @@ export const adminApi = {
     const res = await fetch('/api/admin/restaurants/approve', {
       method: 'POST',
       headers: adminAuth.getHeaders(),
+      credentials: 'include',
       body: JSON.stringify({ restaurantId })
     });
     const result = await res.json();
@@ -158,6 +191,7 @@ export const adminApi = {
     const res = await fetch('/api/admin/restaurants/reject', {
       method: 'POST',
       headers: adminAuth.getHeaders(),
+      credentials: 'include',
       body: JSON.stringify({ restaurantId, reason })
     });
     const result = await res.json();
@@ -171,6 +205,7 @@ export const adminApi = {
     const res = await fetch('/api/admin/restaurants/suspend', {
       method: 'POST',
       headers: adminAuth.getHeaders(),
+      credentials: 'include',
       body: JSON.stringify({ restaurantId, reason })
     });
     const result = await res.json();
@@ -184,6 +219,7 @@ export const adminApi = {
     const res = await fetch('/api/admin/restaurants/reactivate', {
       method: 'POST',
       headers: adminAuth.getHeaders(),
+      credentials: 'include',
       body: JSON.stringify({ restaurantId })
     });
     const result = await res.json();

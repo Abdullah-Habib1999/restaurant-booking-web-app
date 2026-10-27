@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { serverDb } from '@/lib/serverDb';
-import { verifyPassword, isLegacyPlainText, hashPassword, generateAdminSessionToken } from '@/lib/authCrypto';
+import { verifyPassword, isLegacyPlainText, hashPassword, generateAdminSessionToken, ADMIN_COOKIE_NAME, getSessionCookieOptions } from '@/lib/authCrypto';
 
 export async function POST(request: NextRequest) {
   try {
@@ -68,11 +68,15 @@ export async function POST(request: NextRequest) {
 
     const { password: _, ...safeAdmin } = user;
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       admin: safeAdmin,
       token: sessionToken
     });
+
+    response.cookies.set(ADMIN_COOKIE_NAME, sessionToken, getSessionCookieOptions());
+
+    return response;
 
   } catch (err: any) {
     console.error('API /api/admin/auth/login error:', err);

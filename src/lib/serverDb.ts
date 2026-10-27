@@ -173,6 +173,9 @@ async function ensureMongoSeeded(): Promise<void> {
 function cleanDoc<T>(doc: any): T {
   if (!doc) return doc;
   const { _id, ...rest } = doc;
+  if (!rest.id && _id) {
+    rest.id = String(_id);
+  }
   return rest as T;
 }
 
@@ -1177,22 +1180,30 @@ export const serverDb = {
   },
 
   getUserById: async (id: string): Promise<UserProfile | null> => {
+    if (!id) return null;
     if (isMongoConfigured()) {
       await ensureMongoSeeded();
       const db = await getDb();
-      const user = await db.collection<UserProfile>(COLLECTIONS.USERS).findOne({ id });
+      const user = await db.collection<UserProfile>(COLLECTIONS.USERS).findOne({
+        $or: [{ id }, { _id: id as any }]
+      });
       return cleanDoc<UserProfile>(user);
     }
     return memUsers.find(u => u.id === id) || null;
   },
 
   getUserByEmail: async (email: string): Promise<UserProfile | null> => {
+    if (!email) return null;
     const cleanEmail = email.trim().toLowerCase();
     if (isMongoConfigured()) {
       await ensureMongoSeeded();
       const db = await getDb();
+      const escaped = cleanEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const user = await db.collection<UserProfile>(COLLECTIONS.USERS).findOne({
-        email: { $regex: new RegExp(`^${cleanEmail}$`, 'i') }
+        $or: [
+          { email: cleanEmail },
+          { email: { $regex: new RegExp(`^${escaped}$`, 'i') } }
+        ]
       });
       return cleanDoc<UserProfile>(user);
     }
@@ -1202,6 +1213,7 @@ export const serverDb = {
   saveUser: async (u: UserProfile): Promise<UserProfile> => {
     const userDoc: UserProfile = {
       ...u,
+      id: u.id || `user-${Date.now()}`,
       email: u.email.trim().toLowerCase(),
       createdAt: u.createdAt || new Date().toISOString()
     };
@@ -1215,7 +1227,7 @@ export const serverDb = {
       await ensureMongoSeeded();
       const db = await getDb();
       await db.collection(COLLECTIONS.USERS).updateOne(
-        { id: userDoc.id },
+        { $or: [{ id: userDoc.id }, { email: userDoc.email }] },
         { $set: { ...userDoc, _id: userDoc.id } },
         { upsert: true }
       );

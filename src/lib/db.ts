@@ -47,16 +47,20 @@ async function apiFetch<T>(endpoint: string, options?: RequestInit): Promise<T |
       }
     }
     let activeUserId: string | null = null;
+    let userToken: string | null = null;
     if (isBrowser) {
       try {
         activeUserId = localStorage.getItem('restro_active_user_id');
+        userToken = localStorage.getItem('restro_user_token');
       } catch {}
     }
     const res = await fetch(`${baseUrl}${endpoint}`, {
       ...options,
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         ...(activeUserId ? { 'x-user-id': activeUserId } : {}),
+        ...(userToken ? { 'Authorization': `Bearer ${userToken}` } : {}),
         ...(options?.headers || {})
       },
       cache: 'no-store'
@@ -717,17 +721,18 @@ export const db = {
   },
 
   getUserById: async (id: string): Promise<UserProfile | null> => {
+    if (!id) return null;
     const data = await apiFetch<UserProfile>(`/api/users?id=${encodeURIComponent(id)}`);
     if (data) return data;
-    const list = await db.getUsers();
-    return list.find(u => u.id === id) || null;
+    return memUsers.find(u => u.id === id) || null;
   },
 
   getUserByEmail: async (email: string): Promise<UserProfile | null> => {
-    const data = await apiFetch<UserProfile>(`/api/users?email=${encodeURIComponent(email)}`);
+    if (!email) return null;
+    const clean = email.trim().toLowerCase();
+    const data = await apiFetch<UserProfile>(`/api/users?email=${encodeURIComponent(clean)}`);
     if (data) return data;
-    const list = await db.getUsers();
-    return list.find(u => u.email.toLowerCase() === email.toLowerCase()) || null;
+    return memUsers.find(u => u.email.toLowerCase() === clean) || null;
   },
 
   saveUser: async (user: UserProfile): Promise<UserProfile> => {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { serverDb } from '@/lib/serverDb';
 import { UserProfile } from '@/types';
-import { hashPassword, generateAdminSessionToken } from '@/lib/authCrypto';
+import { hashPassword, generateAdminSessionToken, ADMIN_COOKIE_NAME, getSessionCookieOptions } from '@/lib/authCrypto';
 
 export async function POST(request: NextRequest) {
   try {
@@ -83,12 +83,16 @@ export async function POST(request: NextRequest) {
     // Sanitize response: never return password or hash to client
     const { password: _, ...safeAdmin } = adminUser;
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: 'Super Admin account successfully initialized.',
       admin: safeAdmin,
       token: sessionToken
     }, { status: 201 });
+
+    response.cookies.set(ADMIN_COOKIE_NAME, sessionToken, getSessionCookieOptions());
+
+    return response;
 
   } catch (err: any) {
     console.error('API /api/admin/setup error:', err);

@@ -34,11 +34,13 @@ const NAV_ITEMS = [
 export default function OwnerLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isAuthenticated, role, logout } = useAuth();
+  const { user, isAuthenticated, isInitialized, role, logout } = useAuth();
   const [activeRestaurant, setActiveRestaurant] = useState<Restaurant | null>(null);
   const [isVerifying, setIsVerifying] = useState(true);
 
   useEffect(() => {
+    if (!isInitialized) return;
+
     // If not authenticated or not an owner, redirect appropriately
     if (!isAuthenticated) {
       router.push('/partner/login');
@@ -59,7 +61,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
       setIsVerifying(false);
     };
     loadRestaurant();
-  }, [user, isAuthenticated, role, router]);
+  }, [user, isAuthenticated, isInitialized, role, router]);
 
   if (isVerifying) {
     return (

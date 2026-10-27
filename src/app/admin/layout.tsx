@@ -34,42 +34,45 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       return;
     }
 
+    let isMounted = true;
+
     const verify = async () => {
       try {
-        // First check if an admin even exists
-        const status = await adminApi.checkStatus();
+        const res = await adminApi.verifySession();
+        if (res.authenticated && res.admin && res.admin.role === 'admin') {
+          if (isMounted) {
+            setAdmin(res.admin);
+            const statsData = await adminApi.getStats().catch(() => null);
+            if (statsData && isMounted) setStats(statsData);
+            setIsLoading(false);
+          }
+          return;
+        }
+
+        // Not authenticated via cookie/session - check if any admin exists
+        const status = await adminApi.checkStatus().catch(() => ({ hasAdmin: true }));
         if (!status.hasAdmin) {
           router.push('/admin/setup');
           return;
         }
 
-        const stored = adminAuth.getStoredAdmin();
-        if (!stored || stored.role !== 'admin') {
-          router.push('/admin/login');
-          return;
-        }
-
-        const res = await adminApi.verifySession();
-        if (!res.authenticated || !res.admin) {
-          adminAuth.clearStoredAdmin();
-          router.push('/admin/login');
-          return;
-        }
-
-        setAdmin(res.admin);
-
-        // Fetch quick stats for badge counts
-        const statsData = await adminApi.getStats().catch(() => null);
-        if (statsData) setStats(statsData);
+        adminAuth.clearStoredAdmin();
+        router.push('/admin/login');
       } catch (err) {
         console.warn('Admin layout verification failed:', err);
         router.push('/admin/login');
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
     verify();
+
+    return () => {
+      isMounted = false;
+    };
   }, [pathname, isPublicAdminRoute, router]);
 
   if (isPublicAdminRoute) {
@@ -196,8 +199,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
             <button
               type="button"
-              onClick={() => {
-                adminAuth.clearStoredAdmin();
+              onClick={async () => {
+                await adminApi.logout();
                 router.push('/admin/login');
               }}
               className="flex items-center justify-center gap-1.5 text-[11px] text-[#8D8178] hover:text-rose-400 font-medium py-2 px-2.5 rounded-lg bg-[#181513] border border-[#332A25] hover:bg-rose-950/20 transition cursor-pointer text-center"

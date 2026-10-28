@@ -741,7 +741,7 @@ export const db = {
       body: JSON.stringify(user)
     });
     if (data) return data;
-    return user;
+    throw new Error('Failed to persist user profile. Please try again.');
   },
 
   // --- REVIEWS & RATINGS ---

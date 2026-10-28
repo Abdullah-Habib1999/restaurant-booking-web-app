@@ -22,11 +22,10 @@ import { UserProfile } from '@/types';
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [admin, setAdmin] = useState<UserProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [stats, setStats] = useState<AdminStats | null>(null);
-
   const isPublicAdminRoute = pathname === '/admin/login' || pathname === '/admin/setup';
+  const [admin, setAdmin] = useState<UserProfile | null>(() => adminAuth.getStoredAdmin());
+  const [isLoading, setIsLoading] = useState(!isPublicAdminRoute);
+  const [stats, setStats] = useState<AdminStats | null>(null);
 
   useEffect(() => {
     if (isPublicAdminRoute) {
@@ -35,6 +34,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
 
     let isMounted = true;
+    setIsLoading(true);
 
     const verify = async () => {
       try {
@@ -47,6 +47,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             setIsLoading(false);
           }
           return;
+        }
+
+        // Check if stored admin exists with token before kicking out
+        const stored = adminAuth.getStoredAdmin();
+        const storedToken = adminAuth.getStoredToken();
+        if (stored && stored.role === 'admin' && storedToken) {
+          const retryRes = await adminApi.verifySession();
+          if (retryRes.authenticated && retryRes.admin && retryRes.admin.role === 'admin') {
+            if (isMounted) {
+              setAdmin(retryRes.admin);
+              const statsData = await adminApi.getStats().catch(() => null);
+              if (statsData && isMounted) setStats(statsData);
+              setIsLoading(false);
+            }
+            return;
+          }
         }
 
         // Not authenticated via cookie/session - check if any admin exists

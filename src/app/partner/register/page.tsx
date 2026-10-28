@@ -72,28 +72,35 @@ export default function PartnerRegisterPage() {
     }
 
     setIsSubmitting(true);
-    const result = await registerOwner({
-      fullName,
-      email,
-      phone,
-      password,
-      restaurantName,
-      address,
-      city,
-      cuisineType,
-      description,
-      seatingCapacity: Number(seatingCapacity),
-      numTables: Number(numTables),
-      openTime,
-      closeTime
-    });
+    const cleanEmail = email.trim().toLowerCase();
 
-    setIsSubmitting(false);
+    try {
+      const result = await registerOwner({
+        fullName: fullName.trim(),
+        email: cleanEmail,
+        phone: phone.trim(),
+        password,
+        restaurantName: restaurantName.trim(),
+        address: address.trim(),
+        city: city.trim(),
+        cuisineType,
+        description: description.trim(),
+        seatingCapacity: Number(seatingCapacity),
+        numTables: Number(numTables),
+        openTime,
+        closeTime
+      });
 
-    if (result.success && result.restaurantId) {
-      setRegisteredRestaurantId(result.restaurantId);
-    } else {
-      setErrorMessage(result.error || 'Failed to complete registration. Please check your inputs.');
+      setIsSubmitting(false);
+
+      if (result.success && result.restaurantId) {
+        setRegisteredRestaurantId(result.restaurantId);
+      } else {
+        setErrorMessage(result.error || 'Failed to complete registration. Please check your inputs.');
+      }
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setErrorMessage(err.message || 'Failed to complete registration. Please try again.');
     }
   };
 

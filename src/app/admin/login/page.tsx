@@ -28,10 +28,16 @@ export default function AdminLoginPage() {
       try {
         const res = await adminApi.checkStatus();
         setHasAdmin(res.hasAdmin);
-        // If already logged in, redirect to /admin
+        // If already logged in and verified, redirect to /admin
         const stored = adminAuth.getStoredAdmin();
         if (stored && stored.role === 'admin') {
-          router.push('/admin');
+          const verified = await adminApi.verifySession().catch(() => ({ authenticated: false }));
+          if (verified.authenticated) {
+            router.push('/admin');
+            return;
+          } else {
+            adminAuth.clearStoredAdmin();
+          }
         }
       } catch (e) {
         console.warn('Status check failed:', e);
@@ -48,8 +54,11 @@ export default function AdminLoginPage() {
     setSubmitting(true);
 
     try {
-      const res = await adminApi.login(email.trim(), password);
+      const cleanEmail = email.trim().toLowerCase();
+      const res = await adminApi.login(cleanEmail, password);
       adminAuth.setStoredAdmin(res.admin, res.token);
+      // Ensure session is recognized before pushing
+      await adminApi.verifySession().catch(() => null);
       router.push('/admin');
     } catch (err: any) {
       setError(err.message || 'Authentication failed. Please verify your credentials.');

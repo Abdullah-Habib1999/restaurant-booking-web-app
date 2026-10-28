@@ -30,11 +30,14 @@ export default function CustomerLoginPage() {
     setErrorMessage(null);
     setIsSubmitting(true);
 
-    const res = await login(email, password);
+    const cleanEmail = email.trim().toLowerCase();
+    const res = await login(cleanEmail, password);
     setIsSubmitting(false);
 
     if (res.success && res.user) {
-      if (res.user.role === 'restaurant_owner') {
+      if (res.user.role === 'admin') {
+        router.push('/admin');
+      } else if (res.user.role === 'restaurant_owner') {
         router.push('/owner/overview');
       } else {
         router.push('/my-bookings');

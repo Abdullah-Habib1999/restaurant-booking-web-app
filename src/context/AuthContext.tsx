@@ -40,9 +40,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let isMounted = true;
     const init = async () => {
       try {
+        const storedToken = typeof window !== 'undefined' ? localStorage.getItem('restro_user_token') : null;
         const res = await fetch('/api/auth/me', {
           credentials: 'include',
-          cache: 'no-store'
+          cache: 'no-store',
+          headers: storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {}
         });
         if (res.ok) {
           const data = await res.json();
@@ -50,6 +52,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(data.user);
             if (typeof window !== 'undefined') {
               localStorage.setItem('restro_active_user_id', data.user.id);
+              if (data.token) {
+                localStorage.setItem('restro_user_token', data.token);
+              }
             }
             setInitialized(true);
             return;
@@ -154,7 +159,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     openTime: string;
     closeTime: string;
   }): Promise<{ success: boolean; error?: string; restaurantId?: string }> => {
-    const existing = await db.getUserByEmail(data.email);
+    const cleanEmail = data.email.trim().toLowerCase();
+    const existing = await db.getUserByEmail(cleanEmail);
     if (existing) {
       return { success: false, error: 'An account with this email address already exists. Please sign in instead.' };
     }
@@ -237,7 +243,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // 4. Create User Profile
     const newUser: UserProfile = {
       id: userId,
-      email: data.email,
+      email: cleanEmail,
       fullName: data.fullName,
       phone: data.phone,
       role: 'restaurant_owner',
@@ -247,11 +253,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     await db.saveUser(newUser);
 
-    // Log the user in
-    setUser(newUser);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('restro_active_user_id', newUser.id);
-    }
+    // Establish full session cookies and tokens
+    await login(cleanEmail, data.password);
 
     return { success: true, restaurantId };
   };

@@ -44,31 +44,38 @@ export default function CustomerRegisterPage() {
     }
 
     setIsSubmitting(true);
-    const existing = await db.getUserByEmail(email);
-    if (existing) {
+    const cleanEmail = email.trim().toLowerCase();
+
+    try {
+      const existing = await db.getUserByEmail(cleanEmail);
+      if (existing) {
+        setIsSubmitting(false);
+        setErrorMessage('An account with this email already exists. Please sign in instead.');
+        return;
+      }
+
+      const newUser = {
+        id: `cust-${Date.now()}`,
+        email: cleanEmail,
+        fullName: fullName.trim(),
+        phone: phone.trim(),
+        role: 'customer' as const,
+        password,
+        createdAt: new Date().toISOString()
+      };
+
+      await db.saveUser(newUser);
+      const loginRes = await login(cleanEmail, password);
       setIsSubmitting(false);
-      setErrorMessage('An account with this email already exists. Please sign in instead.');
-      return;
+      if (!loginRes.success) {
+        setErrorMessage(loginRes.error || 'Account created. Please log in with your email and password.');
+        return;
+      }
+      router.push('/restaurants');
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setErrorMessage(err.message || 'Failed to complete registration. Please try again.');
     }
-
-    const newUser = {
-      id: `cust-${Date.now()}`,
-      email,
-      fullName,
-      phone,
-      role: 'customer' as const,
-      password,
-      createdAt: new Date().toISOString()
-    };
-
-    await db.saveUser(newUser);
-    const loginRes = await login(email, password);
-    setIsSubmitting(false);
-    if (!loginRes.success) {
-      setErrorMessage(loginRes.error || 'Account created. Please log in with your email and password.');
-      return;
-    }
-    router.push('/restaurants');
   };
 
   return (

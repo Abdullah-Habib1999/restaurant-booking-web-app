@@ -12,13 +12,14 @@ export async function GET(request: NextRequest) {
     }
 
     const { password: _, ...safeAdmin } = adminUser;
+    const token = generateAdminSessionToken(adminUser.id, adminUser.email);
     const response = NextResponse.json({
       authenticated: true,
-      admin: safeAdmin
+      admin: safeAdmin,
+      token
     });
 
     // Refresh admin session cookie
-    const token = generateAdminSessionToken(adminUser.id, adminUser.email);
     response.cookies.set(ADMIN_COOKIE_NAME, token, getSessionCookieOptions());
 
     return response;

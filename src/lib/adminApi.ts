@@ -124,7 +124,7 @@ export const adminApi = {
     adminAuth.clearStoredAdmin();
   },
 
-  verifySession: async (): Promise<{ authenticated: boolean; admin?: UserProfile }> => {
+  verifySession: async (): Promise<{ authenticated: boolean; admin?: UserProfile; token?: string }> => {
     try {
       const headers = adminAuth.getHeaders();
       const res = await fetch('/api/admin/auth/verify', { 
@@ -135,7 +135,7 @@ export const adminApi = {
       if (!res.ok) return { authenticated: false };
       const data = await res.json();
       if (data.authenticated && data.admin) {
-        adminAuth.setStoredAdmin(data.admin);
+        adminAuth.setStoredAdmin(data.admin, data.token);
       }
       return data;
     } catch {

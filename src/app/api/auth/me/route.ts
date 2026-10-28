@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest } from '@/lib/authCrypto';
+import { getUserFromRequest, USER_COOKIE_NAME, generateUserSessionToken, getSessionCookieOptions } from '@/lib/authCrypto';
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,10 +9,14 @@ export async function GET(request: NextRequest) {
     }
 
     const { password: _, ...safeUser } = user;
-    return NextResponse.json({
+    const token = generateUserSessionToken(user.id, user.email, user.role);
+    const response = NextResponse.json({
       authenticated: true,
-      user: safeUser
+      user: safeUser,
+      token
     });
+    response.cookies.set(USER_COOKIE_NAME, token, getSessionCookieOptions());
+    return response;
   } catch (err: any) {
     if (err?.digest?.startsWith('NEXT_')) throw err;
     console.error('API /api/auth/me error:', err);

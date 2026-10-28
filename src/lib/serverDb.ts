@@ -237,7 +237,7 @@ export const serverDb = {
       const db = await getDb();
       await db.collection(COLLECTIONS.RESTAURANTS).updateOne(
         { id: formatted.id },
-        { $set: { ...formatted, _id: formatted.id } },
+        { $set: formatted, $setOnInsert: { _id: formatted.id as any } },
         { upsert: true }
       );
       return formatted;
@@ -279,7 +279,7 @@ export const serverDb = {
       const db = await getDb();
       await db.collection(COLLECTIONS.TABLES).updateOne(
         { id: tableDoc.id },
-        { $set: { ...tableDoc, _id: tableDoc.id } },
+        { $set: tableDoc, $setOnInsert: { _id: tableDoc.id as any } },
         { upsert: true }
       );
       return tableDoc;
@@ -326,7 +326,7 @@ export const serverDb = {
       const db = await getDb();
       await db.collection(COLLECTIONS.MENU_CATEGORIES).updateOne(
         { id: catDoc.id },
-        { $set: { ...catDoc, _id: catDoc.id } },
+        { $set: catDoc, $setOnInsert: { _id: catDoc.id as any } },
         { upsert: true }
       );
       return catDoc;
@@ -378,7 +378,7 @@ export const serverDb = {
       const db = await getDb();
       await db.collection(COLLECTIONS.MENU_ITEMS).updateOne(
         { id: itemDoc.id },
-        { $set: { ...itemDoc, _id: itemDoc.id } },
+        { $set: itemDoc, $setOnInsert: { _id: itemDoc.id as any } },
         { upsert: true }
       );
       return itemDoc;
@@ -469,7 +469,7 @@ export const serverDb = {
       const db = await getDb();
       await db.collection(COLLECTIONS.RESTAURANT_CLOSURES).updateOne(
         { id: closure.id },
-        { $set: { ...closure, _id: closure.id } },
+        { $set: closure, $setOnInsert: { _id: closure.id as any } },
         { upsert: true }
       );
       return closure;
@@ -1211,10 +1211,11 @@ export const serverDb = {
   },
 
   saveUser: async (u: UserProfile): Promise<UserProfile> => {
+    const cleanEmail = u.email ? u.email.trim().toLowerCase() : '';
     const userDoc: UserProfile = {
       ...u,
       id: u.id || `user-${Date.now()}`,
-      email: u.email.trim().toLowerCase(),
+      email: cleanEmail,
       createdAt: u.createdAt || new Date().toISOString()
     };
 
@@ -1226,15 +1227,32 @@ export const serverDb = {
     if (isMongoConfigured()) {
       await ensureMongoSeeded();
       const db = await getDb();
-      await db.collection(COLLECTIONS.USERS).updateOne(
-        { $or: [{ id: userDoc.id }, { email: userDoc.email }] },
-        { $set: { ...userDoc, _id: userDoc.id } },
-        { upsert: true }
-      );
-      return userDoc;
+      
+      const existing = await db.collection<any>(COLLECTIONS.USERS).findOne({
+        $or: [
+          { id: userDoc.id },
+          { email: cleanEmail }
+        ]
+      });
+
+      if (existing) {
+        const effectiveId = existing.id || String(existing._id);
+        const { _id, ...fieldsToUpdate } = { ...userDoc, id: effectiveId } as any;
+        await db.collection(COLLECTIONS.USERS).updateOne(
+          { _id: existing._id },
+          { $set: fieldsToUpdate }
+        );
+        return { ...userDoc, id: effectiveId };
+      } else {
+        await db.collection(COLLECTIONS.USERS).insertOne({
+          ...userDoc,
+          _id: userDoc.id as any
+        });
+        return userDoc;
+      }
     }
 
-    const idx = memUsers.findIndex(item => item.id === userDoc.id || item.email.toLowerCase() === userDoc.email);
+    const idx = memUsers.findIndex(item => item.id === userDoc.id || item.email.toLowerCase() === cleanEmail);
     if (idx >= 0) memUsers[idx] = userDoc;
     else memUsers.push(userDoc);
     return userDoc;

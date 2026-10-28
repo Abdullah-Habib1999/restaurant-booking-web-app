@@ -146,13 +146,13 @@ export async function ensureMongoIndexes(db: Db): Promise<void> {
     // 3. Restaurant Hours
     await db.collection(COLLECTIONS.RESTAURANT_HOURS).createIndexes([
       { key: { id: 1 }, unique: true, name: 'uniq_hour_id' },
-      { key: { restaurantId: 1, dayOfWeek: 1 }, name: 'idx_restaurant_day' }
+      { key: { restaurantId: 1, dayOfWeek: 1 }, name: 'idx_hours_restaurant_day' }
     ]);
 
     // 4. Restaurant Closures
     await db.collection(COLLECTIONS.RESTAURANT_CLOSURES).createIndexes([
       { key: { id: 1 }, unique: true, name: 'uniq_closure_id' },
-      { key: { restaurantId: 1, closureDate: 1 }, name: 'idx_restaurant_closure_date' }
+      { key: { restaurantId: 1, closureDate: 1 }, name: 'idx_closures_restaurant_date' }
     ]);
 
     // 5. Dining Tables
@@ -165,19 +165,19 @@ export async function ensureMongoIndexes(db: Db): Promise<void> {
     // 6. Menu Categories
     await db.collection(COLLECTIONS.MENU_CATEGORIES).createIndexes([
       { key: { id: 1 }, unique: true, name: 'uniq_cat_id' },
-      { key: { restaurantId: 1, displayOrder: 1 }, name: 'idx_category_order' }
+      { key: { restaurantId: 1, displayOrder: 1 }, name: 'idx_cat_order' }
     ]);
 
     // 7. Menu Items
     await db.collection(COLLECTIONS.MENU_ITEMS).createIndexes([
       { key: { id: 1 }, unique: true, name: 'uniq_item_id' },
-      { key: { restaurantId: 1, categoryId: 1, isAvailable: 1 }, name: 'idx_menu_items_cat' }
+      { key: { restaurantId: 1, categoryId: 1, isAvailable: 1 }, name: 'idx_items_cat' }
     ]);
 
     // 8. Reservations
     await db.collection(COLLECTIONS.RESERVATIONS).createIndexes([
       { key: { bookingReference: 1 }, unique: true, name: 'uniq_booking_ref' },
-      { key: { id: 1 }, unique: true, name: 'uniq_reservation_id' },
+      { key: { id: 1 }, unique: true, name: 'uniq_res_id' },
       { key: { restaurantId: 1, reservationDate: 1, status: 1 }, name: 'idx_res_rest_date_status' },
       { key: { customerId: 1, reservationDate: 1 }, name: 'idx_res_customer_date' },
       { key: { assignedTableId: 1, reservationDate: 1 }, name: 'idx_res_table_date' }

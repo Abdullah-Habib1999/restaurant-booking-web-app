@@ -44,6 +44,10 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
+    if (!body || !body.email || typeof body.email !== 'string' || !body.email.trim()) {
+      return NextResponse.json({ error: 'A valid email address is required.' }, { status: 400 });
+    }
+
     // Prevent unauthorized creation or elevation to 'admin' role
     if (body.role === 'admin') {
       const adminUser = await getAdminFromRequest(request);

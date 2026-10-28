@@ -83,14 +83,43 @@ export function isLegacyPlainText(stored?: string): boolean {
 }
 
 /**
- * Generates an HMAC-signed secure administrative session token
+ * Safely decodes a session token from Cookie or Authorization header.
+ * Handles URL percent-encoding (e.g. %3D), quotes, base64url, and standard base64.
+ */
+export function safeDecodeToken(rawToken: string): string {
+  if (!rawToken) return '';
+  let token = rawToken.trim();
+  // Strip surrounding quotes
+  if ((token.startsWith('"') && token.endsWith('"')) || (token.startsWith("'") && token.endsWith("'"))) {
+    token = token.slice(1, -1);
+  }
+  // URL decode if percent-encoded
+  try {
+    token = decodeURIComponent(token);
+  } catch {}
+
+  // Base64URL vs Standard Base64
+  if (token.includes('-') || token.includes('_')) {
+    try {
+      return Buffer.from(token, 'base64url').toString('utf8');
+    } catch {}
+  }
+  try {
+    return Buffer.from(token, 'base64').toString('utf8');
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Generates an HMAC-signed secure administrative session token using URL-safe base64url
  */
 export function generateAdminSessionToken(userId: string, email: string): string {
   const secret = process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_BOOTSTRAP_SECRET || 'tablereserve-admin-session-salt';
   const timestamp = Date.now();
   const payload = `${userId}:${email}:${timestamp}`;
   const hmac = crypto.createHmac('sha256', secret).update(payload).digest('hex');
-  return Buffer.from(`${payload}:${hmac}`).toString('base64');
+  return Buffer.from(`${payload}:${hmac}`).toString('base64url');
 }
 
 /**
@@ -98,7 +127,7 @@ export function generateAdminSessionToken(userId: string, email: string): string
  */
 export function verifyAdminSessionToken(token: string): { valid: boolean; userId?: string; email?: string } {
   try {
-    const decoded = Buffer.from(token, 'base64').toString('utf8');
+    const decoded = safeDecodeToken(token);
     const parts = decoded.split(':');
     if (parts.length !== 4) return { valid: false };
 
@@ -128,14 +157,14 @@ export function verifyAdminSessionToken(token: string): { valid: boolean; userId
 }
 
 /**
- * Generates an HMAC-signed secure session token for customers and restaurant owners
+ * Generates an HMAC-signed secure session token for customers and restaurant owners using URL-safe base64url
  */
 export function generateUserSessionToken(userId: string, email: string, role: string): string {
   const secret = process.env.ADMIN_SESSION_SECRET || 'tablereserve-user-session-salt';
   const timestamp = Date.now();
   const payload = `${userId}:${email}:${role}:${timestamp}`;
   const hmac = crypto.createHmac('sha256', secret).update(payload).digest('hex');
-  return Buffer.from(`${payload}:${hmac}`).toString('base64');
+  return Buffer.from(`${payload}:${hmac}`).toString('base64url');
 }
 
 /**
@@ -143,7 +172,7 @@ export function generateUserSessionToken(userId: string, email: string, role: st
  */
 export function verifyUserSessionToken(token: string): { valid: boolean; userId?: string; email?: string; role?: string } {
   try {
-    const decoded = Buffer.from(token, 'base64').toString('utf8');
+    const decoded = safeDecodeToken(token);
     const parts = decoded.split(':');
     if (parts.length !== 5) return { valid: false };
 

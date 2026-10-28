@@ -30,7 +30,8 @@ export default function PartnerLoginPage() {
     setErrorMessage(null);
     setIsSubmitting(true);
 
-    const res = await login(email, password);
+    const cleanEmail = email.trim().toLowerCase();
+    const res = await login(cleanEmail, password);
     setIsSubmitting(false);
 
     if (res.success && res.user) {
